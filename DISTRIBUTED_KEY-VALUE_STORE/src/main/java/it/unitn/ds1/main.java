@@ -1,35 +1,55 @@
 package it.unitn.ds1;
 import java.io.IOException;
+import java.util.List;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 
+import it.unitn.ds1.Node.JoinGroupMsg;
+
+
+
+
 public class main {
-    final static int N_SENDERS = 5;
+    static int N_NODES = 5;
+    static int N_CLIENTS = 5;
+    final static int RANGE = 50;
+    static int N = 2;
+    static int W = 5;
+    static int R = 1;
+
 
     public static void main(String[] args) {
-        // Create an actor system named "helloakka"
-        final ActorSystem system = ActorSystem.create("helloakka");
 
-        // Create a single Receiver actor
-        final ActorRef receiver = system.actorOf(
-                Receiver.props(),    // actor class
-                "receiver"     // the new actor name (unique within the system)
-        );
+        final ActorSystem system = ActorSystem.create("DHT");
 
-        // Create multiple Sender actors that will send messages to the receiver
-        for (int i=0; i<N_SENDERS; i++) {
-            system.actorOf(
-                    Sender.props(receiver), // specifying the receiver actor here
-                    "sender" + i);    // the new actor name (unique within the system)
+        List<ActorRef> groupn = new ArrayList<>();
+        for (int i = 0; i < N_NODES; i++) {
+            group.add(system.actorOf(Node.props(i), "node" + i));
+        }
+
+        List<ActorRef> groupc = new ArrayList<>();
+        for (int i = 0; i < N_CLIENTS*10; i = i + 10) {
+            groupc.add(system.actorOf(Client.props(i), "client" + i));
+        }
+
+        // Send join messages to the banks to inform them of the whole group
+        JoinGroupMsg start = new JoinGroupMsg(groupn);
+        for (ActorRef peer: groupn) {
+            peer.tell(start, ActorRef.noSender());
+        }
+
+        for (ActorRef peer: groupc) {
+            peer.tell(start, ActorRef.noSender());
         }
 
         System.out.println(">>> Press ENTER to exit <<<");
         try {
             System.in.read();
-        }
-        catch (IOException ioe) {}
-        finally {
+        } catch (IOException ioe) {
+        } finally {
             system.terminate();
         }
+
+    }
 
 }
