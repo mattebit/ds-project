@@ -4,7 +4,10 @@ import akka.actor.AbstractActor;
 import akka.actor.Cancellable;
 import akka.actor.Props;
 import scala.concurrent.duration.Duration;
-import java.util.Random;
+import java.util.*;
+import it.unitn.ds1.Node.retrive;
+import it.unitn.ds1.Node.change;
+
 
 public class Client {
 
@@ -73,12 +76,13 @@ public class Client {
 
     private void onupdate(Node.JoinGroupMsg msg) {
         int to = rnd.nextInt(this.peers.size());
-        int val = this.id;
+        int key = rnd.nextInt(main.RANGE);
+        String val = Integer.toString(this.id);
 
         // model a random network/processing delay
         try { Thread.sleep(rnd.nextInt(10)); }
         catch (InterruptedException e) { e.printStackTrace(); }
-        peers.get(to).tell(new change(val), getSelf());
+        peers.get(to).tell(new change(key,val), getSelf());
     }
 
 

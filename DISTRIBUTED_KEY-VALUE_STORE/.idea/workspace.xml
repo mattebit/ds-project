@@ -5,7 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f06e415a-d299-47b6-9f44-1f60ae94d675" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/it/unitn/ds1/Client.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/it/unitn/ds1/Client.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/it/unitn/ds1/Node.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/it/unitn/ds1/Node.java" afterDir="false" />
@@ -148,11 +147,36 @@
       <option name="presentableId" value="Default" />
       <updated>1690381256706</updated>
       <workItem from="1690381257512" duration="1251000" />
-      <workItem from="1690454321200" duration="9539000" />
+      <workItem from="1690454321200" duration="9616000" />
+      <workItem from="1690640082910" duration="5858000" />
+      <workItem from="1690707675158" duration="9373000" />
+      <workItem from="1690800619968" duration="2714000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/it/unitn/ds1/Node.java</url>
+          <line>35</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
