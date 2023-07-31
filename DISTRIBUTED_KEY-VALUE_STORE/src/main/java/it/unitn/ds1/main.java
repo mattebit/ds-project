@@ -6,6 +6,7 @@ import akka.actor.ActorSystem;
 import java.util.*;
 
 import it.unitn.ds1.Node.JoinGroupMsg;
+import it.unitn.ds1.Client.JoinGroupMsgC;
 
 
 
@@ -18,13 +19,15 @@ public class main {
     final static int W = 5;
     final static int R = 1;
 
+    static List<ActorRef> groupn;
+
 
     public static void main(String[] args) {
 
         final ActorSystem system = ActorSystem.create("DHT");
 
         Map<Integer,ActorRef> Mapgroupn = new TreeMap<Integer,ActorRef>();
-        List<ActorRef> groupn = new ArrayList<ActorRef>();
+        groupn = new ArrayList<ActorRef>();
         for (int i = 0; i < N_NODES; i++) {
             ActorRef a = system.actorOf(Node.props(i), "node" + i);
             Mapgroupn.put(i,a);
@@ -38,12 +41,13 @@ public class main {
 
         // Send join messages to the banks to inform them of the whole group
         JoinGroupMsg start = new JoinGroupMsg(Mapgroupn);
+        JoinGroupMsgC start2 = new JoinGroupMsgC(groupn);
         for (ActorRef peer: groupn) {
             peer.tell(start, ActorRef.noSender());
         }
 
         for (ActorRef peer: groupc) {
-            peer.tell(start, ActorRef.noSender());
+            peer.tell(start2, ActorRef.noSender());
         }
 
         System.out.println(">>> Press ENTER to exit <<<");

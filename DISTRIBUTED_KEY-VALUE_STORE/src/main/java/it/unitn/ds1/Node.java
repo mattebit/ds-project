@@ -17,6 +17,8 @@ public class Node extends AbstractActor {
     private Map<Integer,ActorRef> rout = new HashMap<Integer,ActorRef>();
     private Map<Integer,Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();
 
+
+
     public Node(int id) {
         this.key = id;
 
@@ -135,11 +137,7 @@ public class Node extends AbstractActor {
     }
 
     private void onresponseRead(read msg) {
-        Pair<String, Integer> e = element.get(msg.key);
-        if(e != null){
 
-            getSender().tell(new responseRead(e));
-        }
     }
 
 
