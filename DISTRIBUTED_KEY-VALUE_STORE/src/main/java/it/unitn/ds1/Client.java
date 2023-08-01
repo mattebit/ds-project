@@ -21,6 +21,24 @@ public class Client {
         this.id = id;
     }
 
+    public class result {
+
+        Pair<String,Integer>> p;
+
+        int key;
+
+        boolean success;
+
+        result(Pair<String,Integer> p,int key,boolean success){
+            this.key = key;
+            this.success = success;
+            this.p = p;
+
+        }
+    }
+
+    private List<result> responseList = new ArrayList<result>();
+
     static public Props props(int id, boolean snapshotInitiator) {
         return Props.create(Client.class, () -> new Node(id));
     }
@@ -28,6 +46,22 @@ public class Client {
         public final List<ActorRef> group;   // an array of group members
         public JoinGroupMsgC(List<ActorRef> group) {
             this.group = Collections.unmodifiableList(new ArrayList<ActorRef>(group));
+        }
+    }
+
+    public static class response implements Serializable {
+        public final Pair<String,Integer> p;
+        public final int key;
+
+        public final Boolean success;
+
+
+        public response(Pair<String,Integer> p,Boolean success,int key) {
+            this.success = success;
+            this.key = key;
+            String ind = pair.getKey();
+            Integer value = pair.getValue();
+            this.p = new Pair(ind,value);
         }
     }
 
@@ -84,7 +118,12 @@ public class Client {
         main.groupn.get(to).tell(new change(key,val), getSelf());
     }
 
+    private void onresponse(response msg) {
 
+        responseList.add(new result(msg.p,msg.key,msg.success));
+
+
+    }
 
 
 
@@ -93,6 +132,7 @@ public class Client {
                 .match(Client.JoinGroupMsgC.class,  this::onJoinGroupMsg)
                 .match(Client.get.class,  this::onget)
                 .match(Client.update.class,  this::onupdate)
+                .match(Client.response.class, this::onresponse)
                 .build();
     }
 

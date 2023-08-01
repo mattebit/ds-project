@@ -8,19 +8,43 @@ import java.util.*;
 import javafx.util.Pair;
 import it.unitn.ds1.main;
 import java.lang.Math;
+import scala.concurrent.duration.Duration;
+import java.util.concurrent.TimeUnit;
 
+import it.unitn.ds1.Client.response;
 
 public class Node extends AbstractActor {
     int key;
-    int value;
+
+    int count;
     private List<ActorRef> peers = new ArrayList<ActorRef>();
     private Map<Integer,ActorRef> rout = new HashMap<Integer,ActorRef>();
     private Map<Integer,Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();
 
+    public class Req implements Serializable {
+
+        int count;
+
+        ActorRef a;
+
+        boolean success;
+
+        List<Pair<String, Integer>> respo;
+
+        public Req(ActorRef a) {
+            this.count = 0;
+            this.a = a;
+            this.success = false;
+            respo = new ArrayList<Pair<String, Integer>>;
+
+        }
+    }
+    private Map<Integer,Req> waitC = new HashMap<Integer,WaitC>();
 
 
     public Node(int id) {
         this.key = id;
+        this.count = 0;
 
     }
 
@@ -53,17 +77,25 @@ public class Node extends AbstractActor {
 
     public static class read implements Serializable {
         public final int key;
-        public read(int key) {
+        public final int count;
+        public read(int key, int count) {
             this.key = key;
+            this.count = count;
         }
     }
 
     public static class responseRead implements Serializable {
         public final Pair<String, Integer> e;
-        public responseRead(Pair<String, Integer> pair) {
-            String key = pair.getKey();
+        public final int count;
+
+        public final int key;
+        public responseRead(Pair<String, Integer> pair, int count, int key) {
+            String ind = pair.getKey();
             Integer value = pair.getValue();
-            e = new Pair<String, Integer>(key,value);
+            this.e = new Pair<String, Integer>(ind,value);
+            this.count = count;
+            this.key = key;
+
 
         }
     }
@@ -88,6 +120,9 @@ public class Node extends AbstractActor {
     }
 
     private void onretrive(retrive msg) {
+
+        waitC.put(count,Req(getSender()));
+        count++;
         ActorRef va = null;
         Integer key;
         int i = 0;
@@ -98,12 +133,12 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             if(key > msg.key){
                 if(first) {
-                    va.tell(new read(msg.key), getSelf());
+                    va.tell(new read(msg.key, count), getSelf());
                     i++;
                     first = false;
                 }
                 if(i<main.N){
-                    value.tell(new read(msg.key), getSelf());
+                    value.tell(new read(msg.key, count), getSelf());
                     i++;
                 }else{
                     break;
@@ -118,12 +153,18 @@ public class Node extends AbstractActor {
                 }
                 key = entry.getKey();
                 ActorRef value = entry.getValue();
-                value.tell(new read(msg.key), getSelf());
+                value.tell(new read(msg.key, count), getSelf());
                 i++;
 
 
             }
         }
+        getContext().system().scheduler().scheduleOnce(
+                Duration.create(10, TimeUnit.MILLISECONDS),
+                getSelf(),
+                new Timeout(count), // the message to send
+                getContext().system().dispatcher(), getSelf()
+        );
 
 
     }
@@ -132,13 +173,43 @@ public class Node extends AbstractActor {
         Pair<String, Integer> e = element.get(msg.key);
         if(e != null){
 
-            getSender().tell(new responseRead(e));
+            getSender().tell(new responseRead(e,msg.count,msg.key));
         }
     }
 
-    private void onresponseRead(read msg) {
+    private Pair<String,Integer> max(List<Pair<String,Integer>> l){
+        int max = -1;
+        Pair<String,Integer> pa = new Pair("0",0);
+        for(Pair<String,Integer> p: l){
+            if(p.getValue()>max){
+                pa=p;
+            }
+        }
+
+        return pa;
 
     }
+    private void onresponseRead(read msg) {
+        if(waitC.get(msg.count) != null){
+            if(waitC.get(msg.count).count >= main.R){
+                waitC.get(msg.count).success = true;
+
+                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo),true,msg.key));
+            }
+            waitC.get(msg.count).respo.add(msg.e);
+            waitC.get(msg.count).count++;
+
+        }
+
+
+    }
+
+    private void onTimeout(read msg) {
+        if(waitC.get(msg.key).success){
+            waitC.get(msg.count).a.tell(new response(msg.e,false,msg.key));
+        }
+    }
+
 
 
 
@@ -150,6 +221,7 @@ public class Node extends AbstractActor {
                 .match(change.class,  this::onchange)
                 .match(read.class, this::onread)
                 .match(responseRead.class, this::onresponseRead)
+                .match(Timeout.class, this::onTimeout)
                 .build();
     }
 
