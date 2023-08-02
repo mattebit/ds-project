@@ -28,14 +28,25 @@ public class Node extends AbstractActor {
         ActorRef a;
 
         boolean success;
+        boolean timeout;
+
+        String value;
 
         List<Pair<String, Integer>> respo;
+
+        List<ActorRef> repl;
+
+        List<Integer> version;
 
         public Req(ActorRef a) {
             this.count = 0;
             this.a = a;
-            this.success = false;
-            respo = new ArrayList<Pair<String, Integer>>;
+            this.success = true;
+            this.timeout = true;
+            respo = new ArrayList<Pair<String, Integer>>();
+            version = new ArrayList<Integer>();
+            repl = new ArrayList<ActorRef>();
+            value = "";
 
         }
     }
@@ -45,6 +56,7 @@ public class Node extends AbstractActor {
     public Node(int id) {
         this.key = id;
         this.count = 0;
+
 
     }
 
@@ -84,6 +96,43 @@ public class Node extends AbstractActor {
         }
     }
 
+    public static class readforwrite implements Serializable {
+        public final int key;
+        public final int count;
+        public readforwrite(int key, int count) {
+            this.key = key;
+            this.count = count;
+        }
+    }
+
+    public static class TimeoutR implements Serializable {
+
+        public final int count;
+
+        public final int key;
+        public TimeoutR( int count, int key) {
+
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class TimeoutW implements Serializable {
+
+        public final int count;
+
+        public final int key;
+        public TimeoutW( int count, int key) {
+
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
     public static class responseRead implements Serializable {
         public final Pair<String, Integer> e;
         public final int count;
@@ -100,6 +149,37 @@ public class Node extends AbstractActor {
         }
     }
 
+    public static class responseRFW implements Serializable {
+        public Integer ver;
+        public final int count;
+
+        public final int key;
+        public responseRFW(Integer ver, int count, int key) {
+
+            this.ver = ver;
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class write implements Serializable {
+        public Integer ver;
+        public final String value;
+
+        public final int key;
+        public write(Integer ver, String value, int key) {
+
+            this.ver = ver;
+            this.value = value;
+            this.key = key;
+
+
+        }
+    }
+
+
     private void onJoinGroupMsg(JoinGroupMsg msg) {
 
         for(Map.Entry<Integer,ActorRef> entry : msg.group.entrySet()) {
@@ -110,13 +190,56 @@ public class Node extends AbstractActor {
 
     }
 
-    private void onchange(JoinGroupMsg msg) {
-        for (ActorRef b: msg.group) {
-            this.peers.add(b);
+    private void onchange(change msg) {
+        waitC.put(count,Req(getSender()));
+        waitC.get(count).value = msg.value;
+        count++;
+        ActorRef va = null;
+        Integer key;
+        int i = 0;
+        boolean first = true;
+        for(Map.Entry<Integer,ActorRef> entry : this.rout.entrySet()) {
+
+            key = entry.getKey();
+            ActorRef value = entry.getValue();
+            if(key > msg.key){
+                if(first) {
+                    va.tell(new readforwrite(msg.key, count), getSelf());
+                    waitC.get(count).repl.add(va);
+                    i++;
+                    first = false;
+                }
+                if(i<main.N){
+                    value.tell(new readforwrite(msg.key, count), getSelf());
+                    waitC.get(count).repl.add(va);
+                    i++;
+                }else{
+                    break;
+                }
+            }
+            va = value;
         }
-        System.out.println("" + id + ": starting with " +
-                msg.group.size() + " peer(s)");
-        getSelf().tell(new NextTransfer(), getSelf());  // schedule 1st transaction
+        if(msg.key < main.RANGE && i<main.N){
+            for(Map.Entry<Integer,ActorRef> entry : this.rout.entrySet()) {
+                if(i>=main.N){
+                    break;
+                }
+                key = entry.getKey();
+                ActorRef value = entry.getValue();
+                value.tell(new readforwrite(msg.key, count), getSelf());
+                waitC.get(count).repl.add(va);
+                i++;
+
+
+            }
+        }
+        getContext().system().scheduler().scheduleOnce(
+                Duration.create(10, TimeUnit.MILLISECONDS),
+                getSelf(),
+                new TimeoutW(count,msg.key), // the message to send
+                getContext().system().dispatcher(), getSelf()
+        );
+
     }
 
     private void onretrive(retrive msg) {
@@ -162,20 +285,29 @@ public class Node extends AbstractActor {
         getContext().system().scheduler().scheduleOnce(
                 Duration.create(10, TimeUnit.MILLISECONDS),
                 getSelf(),
-                new Timeout(count), // the message to send
+                new TimeoutR(count,msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
         );
 
 
     }
 
+    private void onreadforwrite(readforwrite msg) {
+        Pair<String, Integer> e = element.get(msg.key);
+        if(e != null){
+
+            getSender().tell(new responseRFW(e.getValue(),msg.count,msg.key),getSelf());
+        }
+    }
+
     private void onread(read msg) {
         Pair<String, Integer> e = element.get(msg.key);
         if(e != null){
 
-            getSender().tell(new responseRead(e,msg.count,msg.key));
+            getSender().tell(new responseRead(e,msg.count,msg.key),getSelf());
         }
     }
+
 
     private Pair<String,Integer> max(List<Pair<String,Integer>> l){
         int max = -1;
@@ -190,11 +322,11 @@ public class Node extends AbstractActor {
 
     }
     private void onresponseRead(read msg) {
-        if(waitC.get(msg.count) != null){
+        if(waitC.get(msg.count) != null && waitC.get(msg.key).success){
             if(waitC.get(msg.count).count >= main.R){
-                waitC.get(msg.count).success = true;
+                waitC.get(msg.key).timeout=false;
 
-                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo),true,msg.key));
+                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo),true,msg.key,"read"),getSelf());
             }
             waitC.get(msg.count).respo.add(msg.e);
             waitC.get(msg.count).count++;
@@ -204,9 +336,53 @@ public class Node extends AbstractActor {
 
     }
 
-    private void onTimeout(read msg) {
-        if(waitC.get(msg.key).success){
-            waitC.get(msg.count).a.tell(new response(msg.e,false,msg.key));
+    private Integer maxI(List<Integer> l){
+        int max = -1;
+
+        for(Integer i: l){
+            if(i>max){
+                max=i;
+            }
+        }
+
+        return max;
+
+    }
+
+    private void onresponseRFW(responseRFW msg) {
+        if(waitC.get(msg.count) != null && waitC.get(msg.count).success){
+            if(waitC.get(msg.count).count >= main.W){
+                waitC.get(msg.key).timeout=false;
+                int maxV = maxI(waitC.get(msg.count).version);
+                waitC.get(msg.count).a.tell(new response(new Pair("",maxV),true,msg.key,"write"),getSelf());
+                for(ActorRef r: waitC.get(msg.count).repl){
+                    r.tell(new write(msg.key,waitC.get(msg.count).value,maxV++),getSelf());
+                }
+            }
+            waitC.get(msg.count).version.add(msg.ver);
+            waitC.get(msg.count).count++;
+
+        }
+
+
+    }
+
+    private void onwrite(write msg) {
+        this.element.put(msg.key,new Pair(msg.value,msg.ver));
+    }
+    private void onTimeoutR(TimeoutR msg) {
+        if(waitC.get(msg.count).timeout){
+            waitC.get(msg.count).a.tell(new response(null,false,msg.key,"read"),getSelf());
+            waitC.get(msg.count).success = false;
+
+        }
+    }
+
+    private void onTimeoutW(TimeoutW msg) {
+        if(waitC.get(msg.count).timeout){
+            waitC.get(msg.count).a.tell(new response(null,false,msg.key,"write"),getSelf());
+            waitC.get(msg.count).success = false;
+
         }
     }
 
@@ -221,7 +397,10 @@ public class Node extends AbstractActor {
                 .match(change.class,  this::onchange)
                 .match(read.class, this::onread)
                 .match(responseRead.class, this::onresponseRead)
-                .match(Timeout.class, this::onTimeout)
+                .match(TimeoutR.class, this::onTimeoutR)
+                .match(readforwrite.class, this::onreadforwrite)
+                .match(responseRFW.class, this::onresponseRFW)
+                .match(write.class, this::onwrite)
                 .build();
     }
 

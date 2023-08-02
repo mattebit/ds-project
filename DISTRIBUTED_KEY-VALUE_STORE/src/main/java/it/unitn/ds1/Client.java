@@ -23,16 +23,20 @@ public class Client {
 
     public class result {
 
-        Pair<String,Integer>> p;
+        Pair<String,Integer> p;
 
         int key;
 
         boolean success;
 
-        result(Pair<String,Integer> p,int key,boolean success){
+        String op;
+
+        result(Pair<String,Integer> p,int key,boolean success, String op){
             this.key = key;
             this.success = success;
             this.p = p;
+            this.op = op;
+
 
         }
     }
@@ -55,13 +59,16 @@ public class Client {
 
         public final Boolean success;
 
+        public final String op;
 
-        public response(Pair<String,Integer> p,Boolean success,int key) {
+
+        public response(Pair<String,Integer> p,Boolean success,int key,String op) {
             this.success = success;
             this.key = key;
             String ind = pair.getKey();
             Integer value = pair.getValue();
             this.p = new Pair(ind,value);
+            this.op = op;
         }
     }
 
@@ -120,7 +127,7 @@ public class Client {
 
     private void onresponse(response msg) {
 
-        responseList.add(new result(msg.p,msg.key,msg.success));
+        responseList.add(new result(msg.p,msg.key,msg.success,msg.op));
 
 
     }
