@@ -62,7 +62,7 @@ public class Node extends AbstractActor {
         return Props.create(Node.class, () -> new Node(id));
     }
 
-
+    //Start message
     public static class JoinGroupMsg implements Serializable {
         public final Map<Integer, ActorRef> group;   // a map of nodes
 
@@ -71,17 +71,19 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Read message from Client
     public static class retrive implements Serializable {
-        public final int key;   // an array of group members
+        public final int key;   //Key of object Client wants to read
 
         public retrive(int key) {
             this.key = key;
         }
     }
 
+    //Write message from Client
     public static class change implements Serializable {
-        public final int key;
-        public final String value;
+        public final int key; //Key of object client wants to insert
+        public final String value; //Value of object client wants to insert
 
         public change(int key, String val) {
             this.key = key;
@@ -89,9 +91,10 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Read message from coordinator to specific nodes
     public static class read implements Serializable {
-        public final int key;
-        public final int count;
+        public final int key; //Key of object coordinator wants to read
+        public final int count; //Key of waiting request associated with the read operation
 
         public read(int key, int count) {
             this.key = key;
@@ -99,9 +102,10 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Read message from coordinator for write operation purpose
     public static class readforwrite implements Serializable {
-        public final int key;
-        public final int count;
+        public final int key; //Key of object coordinator wants to read
+        public final int count; //Key of waiting request associated with the read operation
 
         public readforwrite(int key, int count) {
             this.key = key;
@@ -109,11 +113,12 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Timeout message (in read operation)
     public static class TimeoutR implements Serializable {
 
-        public final int count;
+        public final int count; //Key of waiting request associated with the timeout
 
-        public final int key;
+        public final int key; //Key of object associated with the request
 
         public TimeoutR(int count, int key) {
 
@@ -124,11 +129,12 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Timeout message (in write operation)
     public static class TimeoutW implements Serializable {
 
-        public final int count;
+        public final int count; //Key of waiting request associated with the timeout
 
-        public final int key;
+        public final int key; //Key of object associated with the request
 
         public TimeoutW(int count, int key) {
 
@@ -139,11 +145,12 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Answer from nodes to the coordinator in read operation
     public static class responseRead implements Serializable {
-        public final Pair<String, Integer> e;
-        public final int count;
+        public final Pair<String, Integer> e; //Object (value and version) requested
+        public final int count; //Key of waiting request associated with the read operation
 
-        public final int key;
+        public final int key; //Key of object associated with the read operation
 
         public responseRead(Pair<String, Integer> pair, int count, int key) {
             String ind = pair.getKey();
@@ -156,10 +163,11 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Answer from nodes to the coordinator in write operation
     public static class responseRFW implements Serializable {
-        public final int count;
-        public final int key;
-        public Integer ver;
+        public final int count; //Key of waiting request associated with the write operation
+        public final int key; //Key of object associated with the write operation
+        public Integer ver; //Version of object associated with the write operation
 
         public responseRFW(Integer ver, int count, int key) {
 
@@ -171,10 +179,11 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Write message from coordinator to specific nodes
     public static class write implements Serializable {
-        public final String value;
-        public final int key;
-        public Integer ver;
+        public final String value; //Value of object coordinator wants to insert
+        public final int key; //Key of object coordinator wants to insert
+        public Integer ver; //Value of object coordinator wants to insert
 
         public write(Integer ver, String value, int key) {
 

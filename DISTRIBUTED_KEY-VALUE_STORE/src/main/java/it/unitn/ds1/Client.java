@@ -69,10 +69,11 @@ public class Client extends AbstractActor {
             if(pair != null){
                 String ind = pair.getKey();
                 Integer value = pair.getValue();
+                this.p = new Pair(ind, value);
             }else{
-                p = mull;
+                this.p = mull;
             }
-            this.p = new Pair(ind, value);
+
             this.op = op;
         }
     }
