@@ -1,5 +1,7 @@
 package it.unitn.ds1;
 
+import java.io.Serializable;
+
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
@@ -12,12 +14,40 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Node extends AbstractActor {
-    private final List<ActorRef> peers = new ArrayList<ActorRef>();
-    private final Map<Integer, ActorRef> rout = new HashMap<Integer, ActorRef>();
-    private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();
-    private final Map<Integer, Req> waitC = new HashMap<Integer, WaitC>();
-    int key;
-    int count;
+    private final List<ActorRef> peers = new ArrayList<ActorRef>(); //List of nodes in DKVS
+    private final Map<Integer, ActorRef> rout = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
+    private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
+    private final Map<Integer, Req> waitC = new HashMap<Integer, WaitC>(); //Map between the key and the waiting request of a client
+
+    //Waiting request of a client
+    public class Req  {
+
+        int count; //number of response to this request
+        ActorRef a; //Client associated to this request
+        boolean success; //Outcome of the request (successful or unsuccessful)
+        boolean timeout; //Variable that indicates if a timeout can raised against this request
+        String value; //Value associated to the request (write operation case)
+
+        List<Pair<String, Integer>> respo; //List of object received in the request's answers (read operation case)
+
+        List<ActorRef> repl; //List of replica nodes where this request is sent (write operation case)
+
+        List<Integer> version; //List of object's version in request's answers (write operation case)
+
+        public Req(ActorRef a) {
+            this.count = 0;
+            this.a = a;
+            this.success = true;
+            this.timeout = true;
+            respo = new ArrayList<Pair<String, Integer>>();
+            version = new ArrayList<Integer>();
+            repl = new ArrayList<ActorRef>();
+            value = "";
+
+        }
+    }
+    int key; //Key of the object
+    int count; //Counter of the request this node send as coordinator
 
     public Node(int id) {
         this.key = id;
@@ -26,9 +56,136 @@ public class Node extends AbstractActor {
 
     }
 
-    static public Props props(int id, boolean snapshotInitiator) {
+
+
+    static public Props props(int id) {
         return Props.create(Node.class, () -> new Node(id));
     }
+
+
+    public static class JoinGroupMsg implements Serializable {
+        public final Map<Integer, ActorRef> group;   // a map of nodes
+
+        public JoinGroupMsg(Map<Integer, ActorRef> group) {
+            this.group = Collections.unmodifiableList(new TreeMap<Integer, ActorRef>(group));
+        }
+    }
+
+    public static class retrive implements Serializable {
+        public final int key;   // an array of group members
+
+        public retrive(int key) {
+            this.key = key;
+        }
+    }
+
+    public static class change implements Serializable {
+        public final int key;
+        public final String value;
+
+        public change(int key, String val) {
+            this.key = key;
+            this.value = val;
+        }
+    }
+
+    public static class read implements Serializable {
+        public final int key;
+        public final int count;
+
+        public read(int key, int count) {
+            this.key = key;
+            this.count = count;
+        }
+    }
+
+    public static class readforwrite implements Serializable {
+        public final int key;
+        public final int count;
+
+        public readforwrite(int key, int count) {
+            this.key = key;
+            this.count = count;
+        }
+    }
+
+    public static class TimeoutR implements Serializable {
+
+        public final int count;
+
+        public final int key;
+
+        public TimeoutR(int count, int key) {
+
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class TimeoutW implements Serializable {
+
+        public final int count;
+
+        public final int key;
+
+        public TimeoutW(int count, int key) {
+
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class responseRead implements Serializable {
+        public final Pair<String, Integer> e;
+        public final int count;
+
+        public final int key;
+
+        public responseRead(Pair<String, Integer> pair, int count, int key) {
+            String ind = pair.getKey();
+            Integer value = pair.getValue();
+            this.e = new Pair<String, Integer>(ind, value);
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class responseRFW implements Serializable {
+        public final int count;
+        public final int key;
+        public Integer ver;
+
+        public responseRFW(Integer ver, int count, int key) {
+
+            this.ver = ver;
+            this.count = count;
+            this.key = key;
+
+
+        }
+    }
+
+    public static class write implements Serializable {
+        public final String value;
+        public final int key;
+        public Integer ver;
+
+        public write(Integer ver, String value, int key) {
+
+            this.ver = ver;
+            this.value = value;
+            this.key = key;
+
+
+        }
+    }
+
 
     private void onJoinGroupMsg(JoinGroupMsg msg) {
 
@@ -251,158 +408,8 @@ public class Node extends AbstractActor {
                 .build();
     }
 
-    public static class JoinGroupMsg implements Serializable {
-        public final Map<Integer, ActorRef> group;   // an array of group members
-
-        public JoinGroupMsg(Map<Integer, ActorRef> group) {
-            this.group = Collections.unmodifiableList(new TreeMap<Integer, ActorRef>(group));
-        }
-    }
-
-    public static class retrive implements Serializable {
-        public final int key;   // an array of group members
-
-        public retrive(int key) {
-            this.key = key;
-        }
-    }
-
-    public static class change implements Serializable {
-        public final int key;
-        public final String value;
-
-        public change(int key, String val) {
-            this.key = key;
-            this.value = val;
-        }
-    }
-
-    public static class read implements Serializable {
-        public final int key;
-        public final int count;
-
-        public read(int key, int count) {
-            this.key = key;
-            this.count = count;
-        }
-    }
-
-    public static class readforwrite implements Serializable {
-        public final int key;
-        public final int count;
-
-        public readforwrite(int key, int count) {
-            this.key = key;
-            this.count = count;
-        }
-    }
-
-    public static class TimeoutR implements Serializable {
-
-        public final int count;
-
-        public final int key;
-
-        public TimeoutR(int count, int key) {
-
-            this.count = count;
-            this.key = key;
 
 
-        }
-    }
-
-    public static class TimeoutW implements Serializable {
-
-        public final int count;
-
-        public final int key;
-
-        public TimeoutW(int count, int key) {
-
-            this.count = count;
-            this.key = key;
-
-
-        }
-    }
-
-    public static class responseRead implements Serializable {
-        public final Pair<String, Integer> e;
-        public final int count;
-
-        public final int key;
-
-        public responseRead(Pair<String, Integer> pair, int count, int key) {
-            String ind = pair.getKey();
-            Integer value = pair.getValue();
-            this.e = new Pair<String, Integer>(ind, value);
-            this.count = count;
-            this.key = key;
-
-
-        }
-    }
-
-    public static class responseRFW implements Serializable {
-        public final int count;
-        public final int key;
-        public Integer ver;
-
-        public responseRFW(Integer ver, int count, int key) {
-
-            this.ver = ver;
-            this.count = count;
-            this.key = key;
-
-
-        }
-    }
-
-    public static class write implements Serializable {
-        public final String value;
-        public final int key;
-        public Integer ver;
-
-        public write(Integer ver, String value, int key) {
-
-            this.ver = ver;
-            this.value = value;
-            this.key = key;
-
-
-        }
-    }
-
-    public class Req implements Serializable {
-
-        int count;
-
-        ActorRef a;
-
-        boolean success;
-        boolean timeout;
-
-        String value;
-
-        List<Pair<String, Integer>> respo;
-
-        List<ActorRef> repl;
-
-        List<Integer> version;
-
-        public Req(ActorRef a) {
-            this.count = 0;
-            this.a = a;
-            this.success = true;
-            this.timeout = true;
-            respo = new ArrayList<Pair<String, Integer>>();
-            version = new ArrayList<Integer>();
-            repl = new ArrayList<ActorRef>();
-            value = "";
-
-        }
-    }
 
 
 }
