@@ -7,7 +7,7 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.response;
 import it.unitn.ds1.Node.Req;
-import javafx.util.Pair;
+import it.unitn.ds1.Pair;
 import scala.concurrent.duration.Duration;
 
 import java.util.*;
@@ -17,7 +17,7 @@ public class Node extends AbstractActor {
     private final List<ActorRef> peers = new ArrayList<ActorRef>(); //List of nodes in DKVS
     private final Map<Integer, ActorRef> rout = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
     private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
-    private final Map<Integer, Req> waitC = new HashMap<Integer, WaitC>(); //Map between the key and the waiting request of a client
+
 
     //Waiting request of a client
     public class Req  {
@@ -46,6 +46,8 @@ public class Node extends AbstractActor {
 
         }
     }
+
+    private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
 
@@ -67,7 +69,7 @@ public class Node extends AbstractActor {
         public final Map<Integer, ActorRef> group;   // a map of nodes
 
         public JoinGroupMsg(Map<Integer, ActorRef> group) {
-            this.group = Collections.unmodifiableList(new TreeMap<Integer, ActorRef>(group));
+            this.group = Collections.unmodifiableMap(new TreeMap<Integer, ActorRef>(group));
         }
     }
 
@@ -195,9 +197,9 @@ public class Node extends AbstractActor {
         }
     }
 
-
+    //Handling start message
     private void onJoinGroupMsg(JoinGroupMsg msg) {
-
+        //Add map between key and their nodes in DKVS
         for (Map.Entry<Integer, ActorRef> entry : msg.group.entrySet()) {
             Integer key = entry.getKey();
             ActorRef value = entry.getValue();
@@ -205,36 +207,40 @@ public class Node extends AbstractActor {
         }
 
     }
-
+    //Handling message for write operation from client
     private void onchange(change msg) {
-        waitC.put(count, Req(getSender()));
+        waitC.put(count, new Req(getSender())); //Add new waiting request
         waitC.get(count).value = msg.value;
-        count++;
-        ActorRef va = null;
+        count++; //Raise number of waiting request
+
+        //Handling to send read request to the N replicas
+        //ActorRef va = null;
         Integer key;
-        int i = 0;
-        boolean first = true;
+        int i = 0; //Counter of replica found
+        //boolean first = true; //Handling the first
         for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
 
             key = entry.getKey();
             ActorRef value = entry.getValue();
-            if (key > msg.key) {
-                if (first) {
+            if (key >= msg.key) {
+                /*if (first) {
                     va.tell(new readforwrite(msg.key, count), getSelf());
                     waitC.get(count).repl.add(va);
                     i++;
                     first = false;
-                }
+                }*/
                 if (i < main.N) {
                     value.tell(new readforwrite(msg.key, count), getSelf());
-                    waitC.get(count).repl.add(va);
+                    waitC.get(count).repl.add(value);
                     i++;
                 } else {
                     break;
                 }
             }
-            va = value;
+            //va = value;
         }
+
+        //Handling the case it was visited all nodes and it wasn't covered all replicas
         if (msg.key < main.RANGE && i < main.N) {
             for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
                 if (i >= main.N) {
@@ -243,12 +249,14 @@ public class Node extends AbstractActor {
                 key = entry.getKey();
                 ActorRef value = entry.getValue();
                 value.tell(new readforwrite(msg.key, count), getSelf());
-                waitC.get(count).repl.add(va);
+                waitC.get(count).repl.add(value);
                 i++;
 
 
             }
         }
+
+        //Set the timeout to notify if after a period it isn't received W answers
         getContext().system().scheduler().scheduleOnce(
                 Duration.create(10, TimeUnit.MILLISECONDS),
                 getSelf(),
@@ -257,25 +265,27 @@ public class Node extends AbstractActor {
         );
 
     }
-
+    //Handling message for read operation from client
     private void onretrive(retrive msg) {
 
-        waitC.put(count, Req(getSender()));
+        waitC.put(count, new Req(getSender())); //Add new waiting request
         count++;
-        ActorRef va = null;
+
+        //Handling to send read request to the N replicas
+        //ActorRef va = null;
         Integer key;
-        int i = 0;
-        boolean first = true;
+        int i = 0; //Counter of replica found
+        //boolean first = true;
         for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
 
             key = entry.getKey();
             ActorRef value = entry.getValue();
-            if (key > msg.key) {
-                if (first) {
+            if (key >= msg.key) {
+                /*if (first) {
                     va.tell(new read(msg.key, count), getSelf());
                     i++;
                     first = false;
-                }
+                }*/
                 if (i < main.N) {
                     value.tell(new read(msg.key, count), getSelf());
                     i++;
@@ -283,8 +293,9 @@ public class Node extends AbstractActor {
                     break;
                 }
             }
-            va = value;
+            //va = value;
         }
+        //Handling the case it was visited all nodes and it wasn't covered all replicas
         if (msg.key < main.RANGE && i < main.N) {
             for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
                 if (i >= main.N) {
@@ -298,6 +309,8 @@ public class Node extends AbstractActor {
 
             }
         }
+
+        //Set the timeout to notify if after a period it isn't received R answers
         getContext().system().scheduler().scheduleOnce(
                 Duration.create(10, TimeUnit.MILLISECONDS),
                 getSelf(),
@@ -308,6 +321,7 @@ public class Node extends AbstractActor {
 
     }
 
+    //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
         Pair<String, Integer> e = element.get(msg.key);
         if (e != null) {
@@ -316,6 +330,7 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Handle message from coordinator to read a certain object for read operation
     private void onread(read msg) {
         Pair<String, Integer> e = element.get(msg.key);
         if (e != null) {
@@ -324,6 +339,7 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Find in list of objects the one with the maximum version
     private Pair<String, Integer> max(List<Pair<String, Integer>> l) {
         int max = -1;
         Pair<String, Integer> pa = new Pair("0", 0);
@@ -337,7 +353,8 @@ public class Node extends AbstractActor {
 
     }
 
-    private void onresponseRead(read msg) {
+    //Handling the answer from nodes for read operation
+    private void onresponseRead(responseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.key).success) {
             if (waitC.get(msg.count).count >= main.R) {
                 waitC.get(msg.key).timeout = false;
@@ -351,7 +368,7 @@ public class Node extends AbstractActor {
 
 
     }
-
+    //Find in list of versions the one with maximum
     private Integer maxI(List<Integer> l) {
         int max = -1;
 
@@ -365,6 +382,7 @@ public class Node extends AbstractActor {
 
     }
 
+    //Handling the answer from nodes for write operation
     private void onresponseRFW(responseRFW msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success) {
             if (waitC.get(msg.count).count >= main.W) {
@@ -383,10 +401,12 @@ public class Node extends AbstractActor {
 
     }
 
+    //Handling the write operation from coordinator
     private void onwrite(write msg) {
         this.element.put(msg.key, new Pair(msg.value, msg.ver));
     }
 
+    //Handling the timeout for read operation
     private void onTimeoutR(TimeoutR msg) {
         if (waitC.get(msg.count).timeout) {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "read"), getSelf());
@@ -395,6 +415,7 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Handling the timeout for write operation
     private void onTimeoutW(TimeoutW msg) {
         if (waitC.get(msg.count).timeout) {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());

@@ -6,14 +6,17 @@ import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
+
 import it.unitn.ds1.Node.change;
 import it.unitn.ds1.Node.retrive;
-import scala.concurrent.duration.Duration;
+import it.unitn.ds1.Pair;
 
+import scala.concurrent.duration.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 //Clients of the system
 public class Client extends AbstractActor {
@@ -71,7 +74,7 @@ public class Client extends AbstractActor {
                 Integer value = pair.getValue();
                 this.p = new Pair(ind, value);
             }else{
-                this.p = mull;
+                this.p = null;
             }
 
             this.op = op;
@@ -91,7 +94,7 @@ public class Client extends AbstractActor {
         this.id = id;
     }
 
-    static public Props props(int id, boolean snapshotInitiator) {
+    static public Props props(int id) {
         return Props.create(Client.class, () -> new Client(id));
     }
 
