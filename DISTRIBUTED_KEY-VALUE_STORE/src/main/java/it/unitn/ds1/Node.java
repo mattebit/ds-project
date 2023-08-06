@@ -211,7 +211,7 @@ public class Node extends AbstractActor {
     private void onchange(change msg) {
         waitC.put(count, new Req(getSender())); //Add new waiting request
         waitC.get(count).value = msg.value;
-        count++; //Raise number of waiting request
+
 
         //Handling to send read request to the N replicas
         //ActorRef va = null;
@@ -264,12 +264,14 @@ public class Node extends AbstractActor {
                 getContext().system().dispatcher(), getSelf()
         );
 
+        count++; //Raise number of waiting request
+
     }
     //Handling message for read operation from client
     private void onretrive(retrive msg) {
 
         waitC.put(count, new Req(getSender())); //Add new waiting request
-        count++;
+
 
         //Handling to send read request to the N replicas
         //ActorRef va = null;
@@ -317,7 +319,7 @@ public class Node extends AbstractActor {
                 new TimeoutR(count, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
         );
-
+        count++; //Raise number of waiting request
 
     }
 
@@ -432,6 +434,7 @@ public class Node extends AbstractActor {
                 .match(read.class, this::onread)
                 .match(responseRead.class, this::onresponseRead)
                 .match(TimeoutR.class, this::onTimeoutR)
+                .match(TimeoutW.class, this::onTimeoutW)
                 .match(readforwrite.class, this::onreadforwrite)
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)

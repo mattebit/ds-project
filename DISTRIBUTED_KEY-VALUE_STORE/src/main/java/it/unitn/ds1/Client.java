@@ -88,6 +88,9 @@ public class Client extends AbstractActor {
     public static class update implements Serializable {
     }
 
+    //Print message
+    public static class printAnswer implements Serializable {
+    }
 
 
     public Client(int id) {
@@ -162,6 +165,26 @@ public class Client extends AbstractActor {
 
 
     }
+    //Method to handle the print of answers to the client
+    private void onprintAnswer(printAnswer msg) {
+
+        for(result r: responseList){
+            System.out.println(r.op);
+            if(r.op == "read" && r != null){
+                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op);
+
+            }
+            if(r.op == "write" && r != null){
+
+                System.out.println("ID:" + this.id  + " key:" + r.key + " op:" + r.op);
+
+
+            }
+
+        }
+
+    }
+
 
     public Receive createReceive() {
         return receiveBuilder()
@@ -169,6 +192,7 @@ public class Client extends AbstractActor {
                 .match(get.class, this::onget)
                 .match(update.class, this::onupdate)
                 .match(response.class, this::onresponse)
+                .match(printAnswer.class, this::onprintAnswer)
                 .build();
     }
 

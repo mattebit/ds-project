@@ -2,8 +2,10 @@ package it.unitn.ds1;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+
 import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Node.JoinGroupMsg;
+import it.unitn.ds1.Client.printAnswer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,8 +54,23 @@ public class main {
             peer.tell(start2, ActorRef.noSender());
         }
 
-        System.out.println(">>> Press ENTER to exit <<<");
         try {
+            System.out.println(">>> Press ENTER to print <<<");
+            System.in.read();
+        }catch (IOException ioe) {}
+        printAnswer printa = new printAnswer();
+        for (ActorRef peer : groupc) {
+            peer.tell(printa, ActorRef.noSender());
+            try {
+                System.out.println(">>> continue <<<");
+                System.in.read();
+            }catch (IOException ioe) {}
+        }
+
+
+
+        try {
+            System.out.println(">>> Press ENTER to exit <<<");
             System.in.read();
         } catch (IOException ioe) {
         } finally {
