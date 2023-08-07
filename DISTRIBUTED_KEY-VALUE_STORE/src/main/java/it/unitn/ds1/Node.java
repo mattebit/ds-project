@@ -258,7 +258,7 @@ public class Node extends AbstractActor {
 
         //Set the timeout to notify if after a period it isn't received W answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(10, TimeUnit.MILLISECONDS),
+                Duration.create(20000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutW(count, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -314,7 +314,7 @@ public class Node extends AbstractActor {
 
         //Set the timeout to notify if after a period it isn't received R answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(10, TimeUnit.MILLISECONDS),
+                Duration.create(20000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutR(count, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -326,6 +326,10 @@ public class Node extends AbstractActor {
     //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
         Pair<String, Integer> e = element.get(msg.key);
+        if(e == null){
+            e = new Pair("BESTIALE",-1);
+            element.put(msg.key,e);
+        }
         if (e != null) {
 
             getSender().tell(new responseRFW(e.getValue(), msg.count, msg.key), getSelf());
@@ -335,6 +339,11 @@ public class Node extends AbstractActor {
     //Handle message from coordinator to read a certain object for read operation
     private void onread(read msg) {
         Pair<String, Integer> e = element.get(msg.key);
+        if(e == null){ // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
+            e = new Pair("BESTIALE",0);
+            element.put(msg.key,e);
+        }
+        System.out.println("LEGGGERRRE");
         if (e != null) {
 
             getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());
@@ -357,9 +366,11 @@ public class Node extends AbstractActor {
 
     //Handling the answer from nodes for read operation
     private void onresponseRead(responseRead msg) {
-        if (waitC.get(msg.count) != null && waitC.get(msg.key).success) {
-            if (waitC.get(msg.count).count >= main.R) {
-                waitC.get(msg.key).timeout = false;
+        System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read");
+        if (waitC.get(msg.count) != null && waitC.get(msg.count).success) {
+            if (waitC.get(msg.count).count >= main.R - 1) {
+                waitC.get(msg.count).timeout = false;
+                waitC.get(msg.count).success = false;
 
                 waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
             }
@@ -386,13 +397,16 @@ public class Node extends AbstractActor {
 
     //Handling the answer from nodes for write operation
     private void onresponseRFW(responseRFW msg) {
+        System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write");
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success) {
-            if (waitC.get(msg.count).count >= main.W) {
-                waitC.get(msg.key).timeout = false;
+            if (waitC.get(msg.count).count >= main.W - 1) {
+                waitC.get(msg.count).timeout = false;
+                waitC.get(msg.count).success = false;
                 int maxV = maxI(waitC.get(msg.count).version);
-                waitC.get(msg.count).a.tell(new response(new Pair("", maxV), true, msg.key, "write"), getSelf());
+                maxV++;
+                waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
-                    r.tell(new write(msg.key, waitC.get(msg.count).value, maxV++), getSelf());
+                    r.tell(new write(msg.key, waitC.get(msg.count).value, maxV), getSelf());
                 }
             }
             waitC.get(msg.count).version.add(msg.ver);
@@ -411,6 +425,7 @@ public class Node extends AbstractActor {
     //Handling the timeout for read operation
     private void onTimeoutR(TimeoutR msg) {
         if (waitC.get(msg.count).timeout) {
+            System.out.println("TIMEOOUTRRR");
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "read"), getSelf());
             waitC.get(msg.count).success = false;
 

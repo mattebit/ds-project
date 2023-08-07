@@ -70,6 +70,7 @@ public class Client extends AbstractActor {
             this.success = success;
             this.key = key;
             if(pair != null){
+                System.out.println("PAIR CEEEE");
                 String ind = pair.getKey();
                 Integer value = pair.getValue();
                 this.p = new Pair(ind, value);
@@ -110,7 +111,7 @@ public class Client extends AbstractActor {
         //Start of the occurrences of read
         Cancellable timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
-                Duration.create(2, TimeUnit.SECONDS),        // how frequently generate them
+                Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new get(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
@@ -119,7 +120,7 @@ public class Client extends AbstractActor {
         //Start of the occurrences of write
         Cancellable timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
-                Duration.create(1, TimeUnit.SECONDS),        // how frequently generate them
+                Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new update(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
@@ -169,14 +170,13 @@ public class Client extends AbstractActor {
     private void onprintAnswer(printAnswer msg) {
 
         for(result r: responseList){
-            System.out.println(r.op);
-            if(r.op == "read" && r != null){
-                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op);
+            if(r != null && r.success){
+                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success);
 
             }
-            if(r.op == "write" && r != null){
+            if(r != null && !r.success){
 
-                System.out.println("ID:" + this.id  + " key:" + r.key + " op:" + r.op);
+                System.out.println("ID:" + this.id  + " key:" + r.key + " op:" + r.op + " success:" + r.success);
 
 
             }
