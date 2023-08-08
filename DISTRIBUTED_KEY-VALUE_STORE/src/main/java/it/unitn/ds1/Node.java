@@ -17,7 +17,7 @@ public class Node extends AbstractActor {
     private final List<ActorRef> peers = new ArrayList<ActorRef>(); //List of nodes in DKVS
     private final Map<Integer, ActorRef> rout = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
     private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
-
+    private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     //Waiting request of a client
     public class Req  {
@@ -197,6 +197,14 @@ public class Node extends AbstractActor {
         }
     }
 
+    public static class unlock implements Serializable {
+        public final int key; //Key of object coordinator wants to unlock
+
+        public unlock(int key) {
+            this.key = key;
+        }
+    }
+
     //Handling start message
     private void onJoinGroupMsg(JoinGroupMsg msg) {
         //Add map between key and their nodes in DKVS
@@ -326,9 +334,16 @@ public class Node extends AbstractActor {
     //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
         Pair<String, Integer> e = element.get(msg.key);
+        if(busy.containsKey(msg.key)){ //Check if the object is already in other write operation
+            if(busy.get(msg.key)) {
+                return;
+            }
+        }
+        this.busy.put(msg.key,true);
         if(e == null){
             e = new Pair("BESTIALE",-1);
-            element.put(msg.key,e);
+            busy.put(msg.key,true);
+            //element.put(msg.key,e);
         }
         if (e != null) {
 
@@ -338,6 +353,11 @@ public class Node extends AbstractActor {
 
     //Handle message from coordinator to read a certain object for read operation
     private void onread(read msg) {
+        if(this.busy.containsKey(msg.key)){//Check if the object is already in other write operation
+            if(this.busy.get(msg.key)){
+                return;
+            }
+        }
         Pair<String, Integer> e = element.get(msg.key);
         if(e == null){ // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
             e = new Pair("BESTIALE",0);
@@ -420,6 +440,7 @@ public class Node extends AbstractActor {
     //Handling the write operation from coordinator
     private void onwrite(write msg) {
         this.element.put(msg.key, new Pair(msg.value, msg.ver));
+        this.busy.put(msg.key,false);
     }
 
     //Handling the timeout for read operation
@@ -437,8 +458,16 @@ public class Node extends AbstractActor {
         if (waitC.get(msg.count).timeout) {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
             waitC.get(msg.count).success = false;
+            for(ActorRef a: waitC.get(msg.count).repl){ //UnLock every node from write operation
+                a.tell(new unlock(msg.key),getSelf());
+            }
 
         }
+    }
+
+    //Handling unlock of object from write operation because of the timeout
+    private void onunlock(unlock msg) {
+        busy.put(msg.key,true);
     }
 
     public Receive createReceive() {
@@ -453,6 +482,7 @@ public class Node extends AbstractActor {
                 .match(readforwrite.class, this::onreadforwrite)
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)
+                .match(unlock.class, this::onunlock)
                 .build();
     }
 

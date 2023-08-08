@@ -25,15 +25,18 @@ public class Client extends AbstractActor {
 
     private final Random rnd = new Random();
 
+    //Class of the answers from nodes
     public class result {
 
-        Pair<String, Integer> p;
+        Pair<String, Integer> p; //Object value and version
 
-        int key;
+        int key; //Object key
 
-        boolean success;
+        boolean success; //It indicates if the operation was a success or not
 
-        String op;
+        String op; //Write or read
+
+        //int count; //operatuo
 
         result(Pair<String, Integer> p, int key, boolean success, String op) {
             this.key = key;
