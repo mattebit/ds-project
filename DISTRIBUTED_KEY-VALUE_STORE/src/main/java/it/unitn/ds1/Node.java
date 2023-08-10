@@ -10,6 +10,7 @@ import it.unitn.ds1.Node.Req;
 import it.unitn.ds1.Pair;
 import scala.concurrent.duration.Duration;
 
+
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +27,8 @@ public class Node extends AbstractActor {
         ActorRef a; //Client associated to this request
         boolean success; //Outcome of the request (successful or unsuccessful)
         boolean timeout; //Variable that indicates if a timeout can raised against this request
+
+        int key; //Key of object associated to request
         String value; //Value associated to the request (write operation case)
 
         List<Pair<String, Integer>> respo; //List of object received in the request's answers (read operation case)
@@ -34,7 +37,8 @@ public class Node extends AbstractActor {
 
         List<Integer> version; //List of object's version in request's answers (write operation case)
 
-        public Req(ActorRef a) {
+        public Req(ActorRef a, int key) {
+            this.key = key;
             this.count = 0;
             this.a = a;
             this.success = true;
@@ -217,8 +221,9 @@ public class Node extends AbstractActor {
     }
     //Handling message for write operation from client
     private void onchange(change msg) {
-        waitC.put(count, new Req(getSender())); //Add new waiting request
+        waitC.put(count, new Req(getSender(),msg.key)); //Add new waiting request
         waitC.get(count).value = msg.value;
+
 
 
         //Handling to send read request to the N replicas
@@ -278,7 +283,7 @@ public class Node extends AbstractActor {
     //Handling message for read operation from client
     private void onretrive(retrive msg) {
 
-        waitC.put(count, new Req(getSender())); //Add new waiting request
+        waitC.put(count, new Req(getSender(),msg.key)); //Add new waiting request
 
 
         //Handling to send read request to the N replicas
@@ -342,7 +347,6 @@ public class Node extends AbstractActor {
         this.busy.put(msg.key,true);
         if(e == null){
             e = new Pair("BESTIALE",-1);
-            busy.put(msg.key,true);
             //element.put(msg.key,e);
         }
         if (e != null) {
@@ -386,8 +390,8 @@ public class Node extends AbstractActor {
 
     //Handling the answer from nodes for read operation
     private void onresponseRead(responseRead msg) {
-        System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read");
-        if (waitC.get(msg.count) != null && waitC.get(msg.count).success) {
+        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read");
             if (waitC.get(msg.count).count >= main.R - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
@@ -417,8 +421,9 @@ public class Node extends AbstractActor {
 
     //Handling the answer from nodes for write operation
     private void onresponseRFW(responseRFW msg) {
-        System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write");
-        if (waitC.get(msg.count) != null && waitC.get(msg.count).success) {
+
+        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write");
             if (waitC.get(msg.count).count >= main.W - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;

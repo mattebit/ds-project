@@ -30,15 +30,17 @@ public class main {
 
 
         Map<Integer, ActorRef> Mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and their key
+
         groupn = new ArrayList<ActorRef>();
-        for (int i = 0; i < N_NODES; i++) {
+        for (int i = 0; i < N_NODES*10; i = i + 10) {
             ActorRef a = system.actorOf(Node.props(i), "node" + i);
             Mapgroupn.put(i, a);
             groupn.add(a);
         }
 
+
         List<ActorRef> groupc = new ArrayList<ActorRef>(); //List of clients
-        for (int i = 0; i < N_CLIENTS * 10; i = i + 10) {
+        for (int i = 0; i < N_CLIENTS; i++) {
             groupc.add(system.actorOf(Client.props(i), "client" + i));
         }
 
