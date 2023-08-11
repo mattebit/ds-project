@@ -1,16 +1,12 @@
 package it.unitn.ds1;
 
-import java.io.Serializable;
-
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.response;
-import it.unitn.ds1.Node.Req;
-import it.unitn.ds1.Pair;
 import scala.concurrent.duration.Duration;
 
-
+import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -21,7 +17,7 @@ public class Node extends AbstractActor {
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     //Waiting request of a client
-    public class Req  {
+    public class Req {
 
         int count; //number of response to this request
         ActorRef a; //Client associated to this request
@@ -61,7 +57,6 @@ public class Node extends AbstractActor {
 
 
     }
-
 
 
     static public Props props(int id) {
@@ -209,6 +204,28 @@ public class Node extends AbstractActor {
         }
     }
 
+    public static class JoinNode implements Serializable {
+        ActorRef bootstrapper;
+
+        public JoinNode(ActorRef bootstrapper) {
+            this.bootstrapper = bootstrapper;
+        }
+    }
+
+    //Start message
+    public static class JoinRequest implements Serializable {
+        public JoinRequest() {
+        }
+    }
+
+    public static class JoinResponse implements Serializable {
+        Map<Integer, ActorRef> nodes;
+
+        public JoinResponse(Map<Integer, ActorRef> nodes) {
+            this.nodes = nodes;
+        }
+    }
+
     //Handling start message
     private void onJoinGroupMsg(JoinGroupMsg msg) {
         //Add map between key and their nodes in DKVS
@@ -217,13 +234,12 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             this.rout.put(key, value);
         }
-
     }
+
     //Handling message for write operation from client
     private void onchange(change msg) {
-        waitC.put(count, new Req(getSender(),msg.key)); //Add new waiting request
+        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
         waitC.get(count).value = msg.value;
-
 
 
         //Handling to send read request to the N replicas
@@ -280,10 +296,11 @@ public class Node extends AbstractActor {
         count++; //Raise number of waiting request
 
     }
+
     //Handling message for read operation from client
     private void onretrive(retrive msg) {
 
-        waitC.put(count, new Req(getSender(),msg.key)); //Add new waiting request
+        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
 
 
         //Handling to send read request to the N replicas
@@ -339,14 +356,14 @@ public class Node extends AbstractActor {
     //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
         Pair<String, Integer> e = element.get(msg.key);
-        if(busy.containsKey(msg.key)){ //Check if the object is already in other write operation
-            if(busy.get(msg.key)) {
+        if (busy.containsKey(msg.key)) { //Check if the object is already in other write operation
+            if (busy.get(msg.key)) {
                 return;
             }
         }
-        this.busy.put(msg.key,true);
-        if(e == null){
-            e = new Pair("BESTIALE",-1);
+        this.busy.put(msg.key, true);
+        if (e == null) {
+            e = new Pair("BESTIALE", -1);
             //element.put(msg.key,e);
         }
         if (e != null) {
@@ -357,15 +374,15 @@ public class Node extends AbstractActor {
 
     //Handle message from coordinator to read a certain object for read operation
     private void onread(read msg) {
-        if(this.busy.containsKey(msg.key)){//Check if the object is already in other write operation
-            if(this.busy.get(msg.key)){
+        if (this.busy.containsKey(msg.key)) {//Check if the object is already in other write operation
+            if (this.busy.get(msg.key)) {
                 return;
             }
         }
         Pair<String, Integer> e = element.get(msg.key);
-        if(e == null){ // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
-            e = new Pair("BESTIALE",0);
-            element.put(msg.key,e);
+        if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
+            e = new Pair("BESTIALE", 0);
+            element.put(msg.key, e);
         }
         System.out.println("LEGGGERRRE");
         if (e != null) {
@@ -405,6 +422,7 @@ public class Node extends AbstractActor {
 
 
     }
+
     //Find in list of versions the one with maximum
     private Integer maxI(List<Integer> l) {
         int max = -1;
@@ -445,7 +463,7 @@ public class Node extends AbstractActor {
     //Handling the write operation from coordinator
     private void onwrite(write msg) {
         this.element.put(msg.key, new Pair(msg.value, msg.ver));
-        this.busy.put(msg.key,false);
+        this.busy.put(msg.key, false);
     }
 
     //Handling the timeout for read operation
@@ -463,16 +481,54 @@ public class Node extends AbstractActor {
         if (waitC.get(msg.count).timeout) {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
             waitC.get(msg.count).success = false;
-            for(ActorRef a: waitC.get(msg.count).repl){ //UnLock every node from write operation
-                a.tell(new unlock(msg.key),getSelf());
+            for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
+                a.tell(new unlock(msg.key), getSelf());
             }
 
         }
     }
 
+    /**
+     * Msg sent by the main, to tell to a node which is his bootsrapper
+     *
+     * @param msg
+     */
+    private void onJoinNode(JoinNode msg) {
+        msg.bootstrapper.tell(new JoinRequest(), getSelf());
+    }
+
+    /**
+     * When a join request is received, this means that this node is now a bootstrapper for a new node
+     *
+     * @param msg
+     */
+    private void onJoinRequest(JoinRequest msg) {
+        sender().tell(new JoinResponse(this.rout), getSelf());
+    }
+
+    private void onJoinResponse(JoinResponse msg) {
+        this.rout = msg.nodes;
+
+        Integer neighbour_id = -1;
+
+        List<Integer> ordered_id = new ArrayList<>(rout.keySet());
+        ordered_id.sort(Comparator.reverseOrder());
+
+        for (Integer i : ordered_id) {
+            if (this.key < i) {
+                break;
+            }
+            neighbour_id = i; // TODO check
+        }
+
+        ActorRef neighbour = this.rout.get(neighbour_id);
+
+        // TODO: ask data to neighbour
+    }
+
     //Handling unlock of object from write operation because of the timeout
     private void onunlock(unlock msg) {
-        busy.put(msg.key,true);
+        busy.put(msg.key, true);
     }
 
     public Receive createReceive() {
@@ -488,11 +544,8 @@ public class Node extends AbstractActor {
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)
                 .match(unlock.class, this::onunlock)
+                .match(JoinNode.class, this::onJoinNode)
+                .match(JoinRequest.class, this::onJoinRequest)
                 .build();
     }
-
-
-
-
-
 }

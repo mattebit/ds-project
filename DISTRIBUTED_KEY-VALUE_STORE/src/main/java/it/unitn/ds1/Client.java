@@ -1,17 +1,14 @@
 package it.unitn.ds1;
 
-import java.io.Serializable;
-
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
-
 import it.unitn.ds1.Node.change;
 import it.unitn.ds1.Node.retrive;
-import it.unitn.ds1.Pair;
-
 import scala.concurrent.duration.Duration;
+
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 //Clients of the system
 public class Client extends AbstractActor {
-
     //private List<ActorRef> peers = new ArrayList<>();
 
     private final Random rnd = new Random();
@@ -47,6 +43,7 @@ public class Client extends AbstractActor {
 
         }
     }
+
     private final List<result> responseList = new ArrayList<result>(); //List of the answer from the DKVS
     int id; //Id of the client
 
@@ -72,12 +69,12 @@ public class Client extends AbstractActor {
         public response(Pair<String, Integer> pair, Boolean success, int key, String op) {
             this.success = success;
             this.key = key;
-            if(pair != null){
+            if (pair != null) {
                 System.out.println("PAIR CEEEE");
                 String ind = pair.getKey();
                 Integer value = pair.getValue();
                 this.p = new Pair(ind, value);
-            }else{
+            } else {
                 this.p = null;
             }
 
@@ -88,6 +85,7 @@ public class Client extends AbstractActor {
     //Read messsage
     public static class get implements Serializable {
     }
+
     //Write message
     public static class update implements Serializable {
     }
@@ -131,6 +129,7 @@ public class Client extends AbstractActor {
         );
 
     }
+
     //Read method
     private void onget(get msg) {
         int to = rnd.nextInt(main.groupn.size()); //Choice a random target node
@@ -147,6 +146,7 @@ public class Client extends AbstractActor {
 
 
     }
+
     //Write method
     private void onupdate(update msg) {
         int to = rnd.nextInt(main.groupn.size()); //Choice a random target node
@@ -169,17 +169,18 @@ public class Client extends AbstractActor {
 
 
     }
+
     //Method to handle the print of answers to the client
     private void onprintAnswer(printAnswer msg) {
 
-        for(result r: responseList){
-            if(r != null && r.success){
+        for (result r : responseList) {
+            if (r != null && r.success) {
                 System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success);
 
             }
-            if(r != null && !r.success){
+            if (r != null && !r.success) {
 
-                System.out.println("ID:" + this.id  + " key:" + r.key + " op:" + r.op + " success:" + r.success);
+                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success);
 
 
             }
@@ -198,8 +199,6 @@ public class Client extends AbstractActor {
                 .match(printAnswer.class, this::onprintAnswer)
                 .build();
     }
-
-
 
 
 }
