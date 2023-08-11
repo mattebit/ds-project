@@ -168,7 +168,7 @@ public class Node extends AbstractActor {
     public static class responseRFW implements Serializable {
         public final int count; //Key of waiting request associated with the write operation
         public final int key; //Key of object associated with the write operation
-        public Integer ver; //Version of object associated with the write operation
+        public final int ver; //Version of object associated with the write operation
 
         public responseRFW(Integer ver, int count, int key) {
 
@@ -184,7 +184,7 @@ public class Node extends AbstractActor {
     public static class write implements Serializable {
         public final String value; //Value of object coordinator wants to insert
         public final int key; //Key of object coordinator wants to insert
-        public Integer ver; //Value of object coordinator wants to insert
+        public final int ver; //Value of object coordinator wants to insert
 
         public write(Integer ver, String value, int key) {
 
@@ -408,7 +408,7 @@ public class Node extends AbstractActor {
     //Handling the answer from nodes for read operation
     private void onresponseRead(responseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read");
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read" + "countreq" + msg.count);
             if (waitC.get(msg.count).count >= main.R - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
@@ -441,12 +441,16 @@ public class Node extends AbstractActor {
     private void onresponseRFW(responseRFW msg) {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write");
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count);
             if (waitC.get(msg.count).count >= main.W - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
                 int maxV = maxI(waitC.get(msg.count).version);
                 maxV++;
+                if(msg.key == 0 || msg.key == 1){
+                    System.out.println("maxV" + maxV + "count" + msg.count);
+
+                }
                 waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
                     r.tell(new write(msg.key, waitC.get(msg.count).value, maxV), getSelf());
@@ -507,7 +511,7 @@ public class Node extends AbstractActor {
     }
 
     private void onJoinResponse(JoinResponse msg) {
-        this.rout = msg.nodes;
+        //this.rout = msg.nodes;
 
         Integer neighbour_id = -1;
 
