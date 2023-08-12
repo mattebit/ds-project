@@ -355,15 +355,20 @@ public class Node extends AbstractActor {
 
     //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
-        Pair<String, Integer> e = element.get(msg.key);
         if (busy.containsKey(msg.key)) { //Check if the object is already in other write operation
             if (busy.get(msg.key)) {
                 return;
             }
         }
+        Pair<String, Integer> e = null;
+        if(this.element.containsKey(msg.key)){
+            e = element.get(msg.key);
+
+        }
         this.busy.put(msg.key, true);
         if (e == null) {
             e = new Pair("BESTIALE", -1);
+            System.out.println("ON msg" + msg.key + "write" + "countreq" + msg.count + "vers" + e.getValue());
             //element.put(msg.key,e);
         }
         if (e != null) {
@@ -379,7 +384,12 @@ public class Node extends AbstractActor {
                 return;
             }
         }
-        Pair<String, Integer> e = element.get(msg.key);
+        Pair<String, Integer> e = null;
+        if(this.element.containsKey(msg.key)){
+            e = element.get(msg.key);
+
+        }
+
         if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
             e = new Pair("BESTIALE", 0);
             element.put(msg.key, e);
@@ -397,7 +407,9 @@ public class Node extends AbstractActor {
         Pair<String, Integer> pa = new Pair("0", 0);
         for (Pair<String, Integer> p : l) {
             if (p.getValue() > max) {
-                pa = p;
+                pa.setValue(p.getValue());
+                pa.setKey(p.getKey());
+                max = p.getValue();
             }
         }
 
@@ -441,7 +453,7 @@ public class Node extends AbstractActor {
     private void onresponseRFW(responseRFW msg) {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count);
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count + "vers" + msg.ver);
             if (waitC.get(msg.count).count >= main.W - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;

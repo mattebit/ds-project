@@ -70,7 +70,7 @@ public class Client extends AbstractActor {
             this.success = success;
             this.key = key;
             if (pair != null) {
-                System.out.println("PAIR CEEEE");
+
                 String ind = pair.getKey();
                 Integer value = pair.getValue();
                 this.p = new Pair(ind, value);
