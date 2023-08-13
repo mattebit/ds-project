@@ -236,6 +236,8 @@ public class Node extends AbstractActor {
         }
     }
 
+    public static class printElem implements Serializable {}
+
     //Handling message for write operation from client
     private void onchange(change msg) {
         waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
@@ -244,7 +246,7 @@ public class Node extends AbstractActor {
 
         //Handling to send read request to the N replicas
         //ActorRef va = null;
-        Integer key;
+        int key;
         int i = 0; //Counter of replica found
         //boolean first = true; //Handling the first
         for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
@@ -284,16 +286,16 @@ public class Node extends AbstractActor {
 
             }
         }
-
+        count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received W answers
         getContext().system().scheduler().scheduleOnce(
                 Duration.create(20000, TimeUnit.MILLISECONDS),
                 getSelf(),
-                new TimeoutW(count, msg.key), // the message to send
+                new TimeoutW(count-1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
         );
 
-        count++; //Raise number of waiting request
+
 
     }
 
@@ -305,7 +307,7 @@ public class Node extends AbstractActor {
 
         //Handling to send read request to the N replicas
         //ActorRef va = null;
-        Integer key;
+        int key;
         int i = 0; //Counter of replica found
         //boolean first = true;
         for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
@@ -341,28 +343,28 @@ public class Node extends AbstractActor {
 
             }
         }
-
+        count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received R answers
         getContext().system().scheduler().scheduleOnce(
                 Duration.create(20000, TimeUnit.MILLISECONDS),
                 getSelf(),
-                new TimeoutR(count, msg.key), // the message to send
+                new TimeoutR(count-1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
         );
-        count++; //Raise number of waiting request
+
 
     }
 
     //Handle message from coordinator to read the version of a certain object for write operation
     private void onreadforwrite(readforwrite msg) {
-        if (busy.containsKey(msg.key)) { //Check if the object is already in other write operation
-            if (busy.get(msg.key)) {
+        if (this.busy.containsKey(msg.key)) { //Check if the object is already in other write operation
+            if (this.busy.get(msg.key)) {
                 return;
             }
         }
         Pair<String, Integer> e = null;
         if(this.element.containsKey(msg.key)){
-            e = element.get(msg.key);
+            e = this.element.get(msg.key);
 
         }
         this.busy.put(msg.key, true);
@@ -386,14 +388,14 @@ public class Node extends AbstractActor {
         }
         Pair<String, Integer> e = null;
         if(this.element.containsKey(msg.key)){
-            e = element.get(msg.key);
+            e = this.element.get(msg.key);
 
         }
 
-        if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
+        /*if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
             e = new Pair("BESTIALE", 0);
             element.put(msg.key, e);
-        }
+        }*/
         System.out.println("LEGGGERRRE");
         if (e != null) {
 
@@ -547,6 +549,15 @@ public class Node extends AbstractActor {
         busy.put(msg.key, true);
     }
 
+    private void onprintElem(printElem msg) {
+
+        for(Map.Entry<Integer, Pair<String,Integer>> entry : this.element.entrySet()){
+            System.out.println("idN"+this.key+" idE"+entry.getKey()+" value:"+entry.getValue().getKey()+" version:"+entry.getValue().getValue());
+
+        }
+
+    }
+
     public Receive createReceive() {
         return receiveBuilder()
                 .match(JoinGroupMsg.class, this::onJoinGroupMsg)
@@ -562,6 +573,7 @@ public class Node extends AbstractActor {
                 .match(unlock.class, this::onunlock)
                 .match(JoinNode.class, this::onJoinNode)
                 .match(JoinRequest.class, this::onJoinRequest)
+                .match(printElem.class, this::onprintElem)
                 .build();
     }
 }

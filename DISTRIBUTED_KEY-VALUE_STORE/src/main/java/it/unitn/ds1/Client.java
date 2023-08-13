@@ -48,13 +48,7 @@ public class Client extends AbstractActor {
     int id; //Id of the client
 
     //Start message
-    public static class JoinGroupMsgC implements Serializable {
-        public final List<ActorRef> group;   // an array of nodes
-
-        public JoinGroupMsgC(List<ActorRef> group) {
-            this.group = Collections.unmodifiableList(new ArrayList<ActorRef>(group));
-        }
-    }
+    public static class JoinGroupMsgC implements Serializable { }
 
     //Answer message
     public static class response implements Serializable {
@@ -121,7 +115,7 @@ public class Client extends AbstractActor {
         //Start of the occurrences of write
         Cancellable timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
-                Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
+                Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new update(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
