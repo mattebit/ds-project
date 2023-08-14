@@ -11,9 +11,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Node extends AbstractActor {
-    private final List<ActorRef> peers = new ArrayList<ActorRef>(); //List of nodes in DKVS
-    private final Map<Integer, ActorRef> rout = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
-    private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
+    private final Map<Integer, ActorRef> nodes = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
+    private final Map<Integer, Pair<String, Integer>> elements = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
@@ -30,13 +29,22 @@ public class Node extends AbstractActor {
         return Props.create(Node.class, () -> new Node(id));
     }
 
-    public void update_rout(Map<Integer, ActorRef> new_rout) {
-        Utils.update(rout, new_rout);
+    public void update_remove_nodes(Map<Integer, ActorRef> new_rout) {
+        Utils.update_remove(nodes, new_rout);
+    }
+
+    public void update_remove_element(Map<Integer, Pair<String, Integer>> new_element) {
+        Utils.update_remove(elements, new_element);
+    }
+
+    public void update_nodes(Map<Integer, ActorRef> new_rout) {
+        Utils.update_remove(nodes, new_rout);
     }
 
     public void update_element(Map<Integer, Pair<String, Integer>> new_element) {
-        Utils.update(element, new_element);
+        Utils.update_remove(elements, new_element);
     }
+
 
     /**
      * Selects and removes all the elements given the new node id.
@@ -47,7 +55,7 @@ public class Node extends AbstractActor {
         Map<Integer, Pair<String, Integer>> selected = new HashMap<>();
 
         // select keys
-        for (Map.Entry<Integer, Pair<String, Integer>> el : element.entrySet()) {
+        for (Map.Entry<Integer, Pair<String, Integer>> el : elements.entrySet()) {
             if (el.getKey() <= id) {
                 selected.put(el.getKey(), el.getValue());
             }
@@ -55,7 +63,7 @@ public class Node extends AbstractActor {
 
         // Remove no-more responsible keys
         for (Integer key : selected.keySet()) {
-            element.remove(key);
+            elements.remove(key);
         }
 
         return selected;
@@ -70,7 +78,7 @@ public class Node extends AbstractActor {
     public ActorRef get_responsible_node(Integer key) {
         Integer neighbour_id = -1;
 
-        List<Integer> ordered_id = new ArrayList<>(rout.keySet());
+        List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
         ordered_id.sort(Comparator.reverseOrder());
 
         for (Integer i : ordered_id) {
@@ -83,7 +91,7 @@ public class Node extends AbstractActor {
         if (neighbour_id == -1)
             return null;
 
-        return this.rout.get(neighbour_id);
+        return this.nodes.get(neighbour_id);
     }
 
     /**
@@ -93,10 +101,10 @@ public class Node extends AbstractActor {
      * @param el
      */
     public void put_if_newer(Integer key, Pair<String, Integer> el) {
-        Pair<String, Integer> old_el = element.get(key);
+        Pair<String, Integer> old_el = elements.get(key);
 
         if (old_el.getValue() < el.getValue()) {
-            element.put(key, el);
+            elements.put(key, el);
         }
     }
 
@@ -106,7 +114,7 @@ public class Node extends AbstractActor {
         for (Map.Entry<Integer, ActorRef> entry : msg.group.entrySet()) {
             Integer key = entry.getKey();
             ActorRef value = entry.getValue();
-            this.rout.put(key, value);
+            this.nodes.put(key, value);
         }
     }
 
@@ -121,7 +129,7 @@ public class Node extends AbstractActor {
         int key;
         int i = 0; //Counter of replica found
         //boolean first = true; //Handling the first
-        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+        for (Map.Entry<Integer, ActorRef> entry : this.nodes.entrySet()) {
 
             key = entry.getKey();
             ActorRef value = entry.getValue();
@@ -145,7 +153,7 @@ public class Node extends AbstractActor {
 
         //Handling the case it was visited all nodes and it wasn't covered all replicas
         if (msg.key < main.RANGE && i < main.N) {
-            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+            for (Map.Entry<Integer, ActorRef> entry : this.nodes.entrySet()) {
                 if (i >= main.N) {
                     break;
                 }
@@ -181,7 +189,7 @@ public class Node extends AbstractActor {
         int key;
         int i = 0; //Counter of replica found
         //boolean first = true;
-        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+        for (Map.Entry<Integer, ActorRef> entry : this.nodes.entrySet()) {
 
             key = entry.getKey();
             ActorRef value = entry.getValue();
@@ -202,7 +210,7 @@ public class Node extends AbstractActor {
         }
         //Handling the case it was visited all nodes and it wasn't covered all replicas
         if (msg.key < main.RANGE && i < main.N) {
-            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+            for (Map.Entry<Integer, ActorRef> entry : this.nodes.entrySet()) {
                 if (i >= main.N) {
                     break;
                 }
@@ -234,8 +242,8 @@ public class Node extends AbstractActor {
             }
         }
         Pair<String, Integer> e = null;
-        if (this.element.containsKey(msg.key)) {
-            e = this.element.get(msg.key);
+        if (this.elements.containsKey(msg.key)) {
+            e = this.elements.get(msg.key);
 
         }
         this.busy.put(msg.key, true);
@@ -258,8 +266,8 @@ public class Node extends AbstractActor {
             }
         }
         Pair<String, Integer> e = null;
-        if (this.element.containsKey(msg.key)) {
-            e = element.get(msg.key);
+        if (this.elements.containsKey(msg.key)) {
+            e = elements.get(msg.key);
         }
 
         /*if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
@@ -350,7 +358,7 @@ public class Node extends AbstractActor {
 
     //Handling the write operation from coordinator
     private void onwrite(write msg) {
-        this.element.put(msg.key, new Pair(msg.value, msg.ver));
+        this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
     }
 
@@ -391,7 +399,7 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onJoinRequest(JoinRequest msg) {
-        sender().tell(new JoinResponse(this.rout), getSelf());
+        sender().tell(new JoinResponse(this.nodes), getSelf());
     }
 
     /**
@@ -401,7 +409,7 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onJoinResponse(JoinResponse msg) {
-        update_rout(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
+        update_remove_nodes(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
         ActorRef neighbour = get_responsible_node(key);
 
         // ask data to neighbour
@@ -415,10 +423,10 @@ public class Node extends AbstractActor {
     }
 
     private void onDataResponse(DataResponse msg) {
-        update_element(msg.data);
+        update_remove_element(msg.data);
 
         // TODO: check the data with a read
-        for (Integer key : element.keySet()) {
+        for (Integer key : elements.keySet()) {
             ActorRef resp_node = get_responsible_node(key);
             resp_node.tell(new retrive(key), self());
         }
@@ -448,7 +456,7 @@ public class Node extends AbstractActor {
 
     private void onAnnounceNode(AnnounceNode msg) {
         // TODO: add new joined node
-        this.rout.put(msg.key, sender());
+        this.nodes.put(msg.key, sender());
     }
 
     //Handling unlock of object from write operation because of the timeout
@@ -458,11 +466,29 @@ public class Node extends AbstractActor {
 
     private void onprintElem(printElem msg) {
 
-        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.element.entrySet()) {
+        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
             System.out.println("idN" + this.key + " idE" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
-
         }
+    }
 
+    private void onLeaveRequest(LeaveRequest msg) {
+        // announce to every node that this is leaving
+        // add the data items they are now responsible for
+        for (Integer key : nodes.keySet()) {
+            Map<Integer, Pair<String, Integer>> to_give = new HashMap<>();
+
+            for (Map.Entry<Integer, Pair<String, Integer>> el : elements.entrySet()) {
+                if (el.getKey() <= key)
+                    to_give.put(el.getKey(), el.getValue());
+            }
+
+            nodes.get(key).tell(new NodeLeavingInfo(to_give, key), self());
+        }
+    }
+
+    private void onNodeLeavingInfo(NodeLeavingInfo msg) {
+        update_element(msg.new_elements); // update the data of the old element (if present)
+        nodes.remove(msg.key); // remove node that leaved
     }
 
     public Receive createReceive() {
@@ -487,6 +513,10 @@ public class Node extends AbstractActor {
                 .match(DataResponse.class, this::onDataResponse)
                 .match(Client.response.class, this::onResponse)
                 .match(AnnounceNode.class, this::onAnnounceNode)
+
+                // leave messages
+                .match(LeaveRequest.class, this::onLeaveRequest)
+                .match(NodeLeavingInfo.class, this::onNodeLeavingInfo)
 
                 .build();
     }
@@ -680,6 +710,18 @@ public class Node extends AbstractActor {
     }
 
     public static class printElem implements Serializable {
+    }
+
+    public static class LeaveRequest implements Serializable {
+    }
+
+    public static class NodeLeavingInfo implements Serializable {
+        Map<Integer, Pair<String, Integer>> new_elements;
+        Integer key;
+        public NodeLeavingInfo(Map<Integer, Pair<String, Integer>> new_elements, Integer key) {
+            this.new_elements = new_elements;
+            this.key = key;
+        }
     }
 
     //Waiting request of a client

@@ -20,6 +20,7 @@ public class Client extends AbstractActor {
     private final Random rnd = new Random();
     private final List<result> responseList = new ArrayList<result>(); //List of the answer from the DKVS
     int id; //Id of the client
+
     public Client(int id) {
         this.id = id;
     }

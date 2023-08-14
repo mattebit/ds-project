@@ -61,39 +61,22 @@ public class main {
         boolean done = false;
 
         try {
-            //while(!done) {
-            System.out.println(">>> Press ENTER to print <<<");
-            System.in.read();
-
-            printAnswer printa = new printAnswer();
-
-            for (ActorRef client : groupc) {
-                client.tell(printa, ActorRef.noSender());
-                System.out.println(">>> continue <<<");
+            while(!done) {
+                System.out.println(">>> Press ENTER to print Elemnts<<<");
                 System.in.read();
-            }
 
+                printElem printa = new printElem();
 
-            //}
-        } catch (IOException e) {
+                for (ActorRef node : groupn) {
+                    node.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
 
-        }
-        try {
-            //while(!done) {
-            System.out.println(">>> Press ENTER to print Elemnts<<<");
-            System.in.read();
-
-            printElem printa = new printElem();
-
-            for (ActorRef node : groupn) {
-                node.tell(printa, ActorRef.noSender());
-                System.out.println(">>> continue <<<");
+                System.out.println(">>> Press ENTER to exit <<<");
                 System.in.read();
+                done = true;
             }
-
-            System.out.println(">>> Press ENTER to exit <<<");
-            System.in.read();
-            //}
         } catch (IOException e) {
 
         } finally {
