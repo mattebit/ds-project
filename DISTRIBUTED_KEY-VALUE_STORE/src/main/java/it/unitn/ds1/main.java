@@ -6,6 +6,7 @@ import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Client.printAnswer;
 import it.unitn.ds1.Node.printElem;
 import it.unitn.ds1.Node.JoinGroupMsg;
+import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 //import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
 
 import java.io.IOException;
@@ -105,7 +106,7 @@ public class main {
         }
     }
 
-    /*public void create_new_node(Integer id) {
+    public void create_new_node(Integer id) {
         if (mapgroupn.containsKey(id)) {
             throw new ValueException("a node with id " + " is already present");
         }
@@ -119,5 +120,5 @@ public class main {
 
         // tell the new node about the bootstrapper
         a.tell(new Node.JoinNode(bootstrapper), ActorRef.noSender());
-    }*/
+    }
 }
