@@ -1,9 +1,11 @@
 package it.unitn.ds1;
 
 import akka.actor.AbstractActor;
+import akka.actor.Actor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.response;
+import scala.Int;
 import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
@@ -16,6 +18,7 @@ public class Node extends AbstractActor {
     private final Map<Integer, Pair<String, Integer>> element = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
+    private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
     //Waiting request of a client
     public class Req {
 
@@ -47,6 +50,73 @@ public class Node extends AbstractActor {
         }
     }
 
+    public void update_rout(Map<Integer, ActorRef> new_rout) {
+        Utils.update(rout, new_rout);
+    }
+
+    public void update_element(Map<Integer, Pair<String, Integer>> new_element) {
+        Utils.update(element, new_element);
+    }
+
+    /**
+     * Selects and removes all the elements given the new node id.
+     * @param id the node asking the data
+     */
+    public Map<Integer, Pair<String, Integer>> select_elements_and_remove(Integer id) {
+        Map<Integer, Pair<String, Integer>> selected = new HashMap<>();
+
+        // select keys
+        for (Map.Entry<Integer, Pair<String, Integer>> el : element.entrySet()) {
+            if (el.getKey() <= id) {
+                selected.put(el.getKey(), el.getValue());
+            }
+        }
+
+        // Remove no-more responsible keys
+        for (Integer key : selected.keySet()) {
+            element.remove(key);
+        }
+
+        return selected;
+    }
+
+    /**
+     * Given the key, find the node responsible for it (can also be used to find a neighbour)
+     * @param key
+     * @return
+     */
+    public ActorRef get_responsible_node(Integer key) {
+        Integer neighbour_id = -1;
+
+        List<Integer> ordered_id = new ArrayList<>(rout.keySet());
+        ordered_id.sort(Comparator.reverseOrder());
+
+        for (Integer i : ordered_id) {
+            if (key < i) {
+                break;
+            }
+            neighbour_id = i; // TODO check
+        }
+
+        if (neighbour_id == -1)
+            return null;
+
+        return this.rout.get(neighbour_id);
+    }
+
+    /**
+     * Given a key and an element, put it in the Map if newer (if not present it will not be added)
+     * @param key
+     * @param el
+     */
+    public void put_if_newer(Integer key, Pair<String, Integer> el) {
+        Pair<String, Integer> old_el = element.get(key);
+
+        if (old_el.getValue() < el.getValue()) {
+            element.put(key, el);
+        }
+    }
+
     private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
@@ -54,8 +124,6 @@ public class Node extends AbstractActor {
     public Node(int id) {
         this.key = id;
         this.count = 0;
-
-
     }
 
 
@@ -191,8 +259,32 @@ public class Node extends AbstractActor {
             this.ver = ver;
             this.value = value;
             this.key = key;
+        }
+    }
 
+    public static class DataRequest implements Serializable {
+        public final Integer id;
 
+        public DataRequest(Integer id) {
+            this.id = id;
+        }
+    }
+
+    public static class DataResponse implements Serializable {
+        public final Map<Integer, Pair<String, Integer>> data;
+
+        public DataResponse(Map<Integer, Pair<String, Integer>> data) {
+            this.data = data;
+        }
+    }
+
+    /**
+     * Message sent by a new node when it joined the network
+     */
+    public static class AnnounceNode implements Serializable {
+        public final Integer key;
+        public AnnounceNode(Integer key) {
+            this.key = key;
         }
     }
 
@@ -387,7 +479,6 @@ public class Node extends AbstractActor {
         Pair<String, Integer> e = null;
         if(this.element.containsKey(msg.key)){
             e = element.get(msg.key);
-
         }
 
         if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
@@ -522,24 +613,59 @@ public class Node extends AbstractActor {
         sender().tell(new JoinResponse(this.rout), getSelf());
     }
 
+    /**
+     * Processing the Join Response sent by the bootstrapper. It finds the nearest neighbour, asking to him the
+     * keys this node is responsible for
+     * @param msg
+     */
     private void onJoinResponse(JoinResponse msg) {
-        //this.rout = msg.nodes;
+        update_rout(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
+        ActorRef neighbour = get_responsible_node(key);
 
-        Integer neighbour_id = -1;
+        // ask data to neighbour
+        neighbour.tell(new DataRequest(key), self());
+    }
 
-        List<Integer> ordered_id = new ArrayList<>(rout.keySet());
-        ordered_id.sort(Comparator.reverseOrder());
+    private void onDataRequest(DataRequest msg) {
+        Map<Integer, Pair<String, Integer>> selected = select_elements_and_remove(msg.id);
 
-        for (Integer i : ordered_id) {
-            if (this.key < i) {
-                break;
-            }
-            neighbour_id = i; // TODO check
+        sender().tell(new DataResponse(selected), getSelf());
+    }
+
+    private void onDataResponse(DataResponse msg) {
+        update_element(msg.data);
+
+        // TODO: check the data with a read
+        for (Integer key : element.keySet()) {
+            ActorRef resp_node = get_responsible_node(key);
+            resp_node.tell(new retrive(key), self());
         }
 
-        ActorRef neighbour = this.rout.get(neighbour_id);
+        to_be_updated.addAll(msg.data.keySet());
+    }
 
-        // TODO: ask data to neighbour
+    /**
+     * This handles responses received from a read request done after a node joins the circle and reads all the elements
+     * @param msg
+     */
+    private void onResponse(Client.response msg) {
+        to_be_updated.remove(msg.key);
+
+         if (!msg.success || msg.op.equals("read")) {
+             // TODO ?
+             return;
+         }
+
+         put_if_newer(msg.key, msg.p);
+
+         if (to_be_updated.isEmpty()) {
+             // TODO announce node
+         }
+    }
+
+    private void onAnnounceNode(AnnounceNode msg) {
+        // TODO: add new joined node
+        this.rout.put(msg.key, sender());
     }
 
     //Handling unlock of object from write operation because of the timeout
@@ -560,8 +686,16 @@ public class Node extends AbstractActor {
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)
                 .match(unlock.class, this::onunlock)
+
+                // join messages
                 .match(JoinNode.class, this::onJoinNode)
                 .match(JoinRequest.class, this::onJoinRequest)
+                .match(JoinResponse.class, this::onJoinResponse)
+                .match(DataRequest.class, this::onDataRequest)
+                .match(DataResponse.class, this::onDataResponse)
+                .match(Client.response.class, this::onResponse)
+                .match(AnnounceNode.class, this::onAnnounceNode)
+
                 .build();
     }
 }

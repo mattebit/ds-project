@@ -63,7 +63,7 @@ public class Client extends AbstractActor {
 
         public final Boolean success; //Outcome of the operation
 
-        public final String op; //Type of the operation (write or read)
+        public final String op; //Type of the operation (write or read) // TODO change to enum
 
 
         public response(Pair<String, Integer> pair, Boolean success, int key, String op) {
