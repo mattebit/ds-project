@@ -6,6 +6,7 @@ import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Client.printAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.printElem;
+import scala.Int;
 
 import java.io.IOException;
 import java.util.*;
@@ -19,17 +20,14 @@ public class main {
     final static ActorSystem system = ActorSystem.create("DKVS");
     static int N_NODES = 5; //Number of the initial nodes
     static int N_CLIENTS = 5; //Number of the initial clients
-    static List<ActorRef> groupn; //List of nodes in DKVS
     static Map<Integer, ActorRef> mapgroupn;
 
     public static void main(String[] args) {
         mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and their key
 
-        groupn = new ArrayList<ActorRef>();
         for (int i = 0; i < N_NODES * 10; i = i + 10) {
             ActorRef a = system.actorOf(Node.props(i), "node" + i);
             mapgroupn.put(i, a);
-            groupn.add(a);
         }
 
         List<ActorRef> groupc = new ArrayList<ActorRef>(); //List of clients
@@ -43,8 +41,8 @@ public class main {
         JoinGroupMsgC start2 = new JoinGroupMsgC();
 
         // Start all the nodes
-        for (ActorRef peer : groupn) {
-            peer.tell(start, ActorRef.noSender());
+        for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
+            entry.getValue().tell(start, ActorRef.noSender());
         }
 
         try {
@@ -67,8 +65,8 @@ public class main {
 
                 printElem printa = new printElem();
 
-                for (ActorRef node : groupn) {
-                    node.tell(printa, ActorRef.noSender());
+                for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
+                    entry.getValue().tell(printa, ActorRef.noSender());
                     System.out.println(">>> continue <<<");
                     System.in.read();
                 }
@@ -84,6 +82,22 @@ public class main {
         }
     }
 
+    public static ActorRef get_random_node() {
+        Random r = new Random();
+        Set<Integer> s = mapgroupn.keySet();
+        Integer ran = r.nextInt(s.size());
+        int count = 0;
+        int res = 0;
+        for (Integer k : s) {
+            if (ran == count) {
+                res = k;
+                break;
+            }
+        }
+
+        return mapgroupn.get(res);
+    }
+
     public void create_new_node(Integer id) {
         if (mapgroupn.containsKey(id)) {
             throw new RuntimeException("a node with id " + " is already present");
@@ -93,8 +107,7 @@ public class main {
         ActorRef a = system.actorOf(Node.props(id), "node" + id);
 
         // choose a random bootstrapper node
-        Random r = new Random();
-        ActorRef bootstrapper = groupn.get(r.nextInt(groupn.size()));
+        ActorRef bootstrapper = get_random_node();
 
         // tell the new node about the bootstrapper
         a.tell(new Node.JoinNode(bootstrapper), ActorRef.noSender());

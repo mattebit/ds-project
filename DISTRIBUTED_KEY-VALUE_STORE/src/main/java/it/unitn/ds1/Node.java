@@ -274,7 +274,7 @@ public class Node extends AbstractActor {
             e = new Pair("BESTIALE", 0);
             element.put(msg.key, e);
         }*/
-        System.out.println("LEGGGERRRE");
+        //System.out.println("LEGGGERRRE");
         if (e != null) {
 
             getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());

@@ -58,9 +58,8 @@ public class Client extends AbstractActor {
 
     //Read method
     private void onget(get msg) {
-        int to = rnd.nextInt(main.groupn.size()); //Choice a random target node
+        int to = rnd.nextInt(main.mapgroupn.size()); //Choice a random target node
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
-
 
         // model a random network/processing delay
         try {
@@ -68,14 +67,11 @@ public class Client extends AbstractActor {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        main.groupn.get(to).tell(new retrive(key), getSelf());
-
-
+        main.get_random_node().tell(new retrive(key), getSelf());
     }
 
     //Write method
     private void onupdate(update msg) {
-        int to = rnd.nextInt(main.groupn.size()); //Choice a random target node
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
         String val = Integer.toString(this.id); //Value to write
 
@@ -85,34 +81,24 @@ public class Client extends AbstractActor {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        main.groupn.get(to).tell(new change(key, val), getSelf());
+        main.get_random_node().tell(new change(key, val), getSelf());
     }
 
     //Method to handle the answer from nodes
     private void onresponse(response msg) {
-
         responseList.add(new result(msg.p, msg.key, msg.success, msg.op));
-
-
     }
 
     //Method to handle the print of answers to the client
     private void onprintAnswer(printAnswer msg) {
-
         for (result r : responseList) {
             if (r != null && r.success) {
                 System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success);
-
             }
             if (r != null && !r.success) {
-
                 System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success);
-
-
             }
-
         }
-
     }
 
     public Receive createReceive() {
@@ -185,10 +171,6 @@ public class Client extends AbstractActor {
             this.success = success;
             this.p = p;
             this.op = op;
-
-
         }
     }
-
-
 }
