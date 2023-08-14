@@ -1,11 +1,9 @@
 package it.unitn.ds1;
 
 import akka.actor.AbstractActor;
-import akka.actor.Actor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.response;
-import scala.Int;
 import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
@@ -19,35 +17,17 @@ public class Node extends AbstractActor {
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
-    //Waiting request of a client
-    public class Req {
+    private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
+    int key; //Key of the object
+    int count; //Counter of the request this node send as coordinator
 
-        int count; //number of response to this request
-        ActorRef a; //Client associated to this request
-        boolean success; //Outcome of the request (successful or unsuccessful)
-        boolean timeout; //Variable that indicates if a timeout can raised against this request
+    public Node(int id) {
+        this.key = id;
+        this.count = 0;
+    }
 
-        int key; //Key of object associated to request
-        String value; //Value associated to the request (write operation case)
-
-        List<Pair<String, Integer>> respo; //List of object received in the request's answers (read operation case)
-
-        List<ActorRef> repl; //List of replica nodes where this request is sent (write operation case)
-
-        List<Integer> version; //List of object's version in request's answers (write operation case)
-
-        public Req(ActorRef a, int key) {
-            this.key = key;
-            this.count = 0;
-            this.a = a;
-            this.success = true;
-            this.timeout = true;
-            respo = new ArrayList<Pair<String, Integer>>();
-            version = new ArrayList<Integer>();
-            repl = new ArrayList<ActorRef>();
-            value = "";
-
-        }
+    static public Props props(int id) {
+        return Props.create(Node.class, () -> new Node(id));
     }
 
     public void update_rout(Map<Integer, ActorRef> new_rout) {
@@ -60,6 +40,7 @@ public class Node extends AbstractActor {
 
     /**
      * Selects and removes all the elements given the new node id.
+     *
      * @param id the node asking the data
      */
     public Map<Integer, Pair<String, Integer>> select_elements_and_remove(Integer id) {
@@ -82,6 +63,7 @@ public class Node extends AbstractActor {
 
     /**
      * Given the key, find the node responsible for it (can also be used to find a neighbour)
+     *
      * @param key
      * @return
      */
@@ -106,6 +88,7 @@ public class Node extends AbstractActor {
 
     /**
      * Given a key and an element, put it in the Map if newer (if not present it will not be added)
+     *
      * @param key
      * @param el
      */
@@ -117,18 +100,395 @@ public class Node extends AbstractActor {
         }
     }
 
-    private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
-    int key; //Key of the object
-    int count; //Counter of the request this node send as coordinator
-
-    public Node(int id) {
-        this.key = id;
-        this.count = 0;
+    //Handling start message
+    private void onJoinGroupMsg(JoinGroupMsg msg) {
+        //Add map between key and their nodes in DKVS
+        for (Map.Entry<Integer, ActorRef> entry : msg.group.entrySet()) {
+            Integer key = entry.getKey();
+            ActorRef value = entry.getValue();
+            this.rout.put(key, value);
+        }
     }
 
+    //Handling message for write operation from client
+    private void onchange(change msg) {
+        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
+        waitC.get(count).value = msg.value;
 
-    static public Props props(int id) {
-        return Props.create(Node.class, () -> new Node(id));
+
+        //Handling to send read request to the N replicas
+        //ActorRef va = null;
+        int key;
+        int i = 0; //Counter of replica found
+        //boolean first = true; //Handling the first
+        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+
+            key = entry.getKey();
+            ActorRef value = entry.getValue();
+            if (key >= msg.key) {
+                /*if (first) {
+                    va.tell(new readforwrite(msg.key, count), getSelf());
+                    waitC.get(count).repl.add(va);
+                    i++;
+                    first = false;
+                }*/
+                if (i < main.N) {
+                    value.tell(new readforwrite(msg.key, count), getSelf());
+                    waitC.get(count).repl.add(value);
+                    i++;
+                } else {
+                    break;
+                }
+            }
+            //va = value;
+        }
+
+        //Handling the case it was visited all nodes and it wasn't covered all replicas
+        if (msg.key < main.RANGE && i < main.N) {
+            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+                if (i >= main.N) {
+                    break;
+                }
+                key = entry.getKey();
+                ActorRef value = entry.getValue();
+                value.tell(new readforwrite(msg.key, count), getSelf());
+                waitC.get(count).repl.add(value);
+                i++;
+
+
+            }
+        }
+        count++; //Raise number of waiting request
+        //Set the timeout to notify if after a period it isn't received W answers
+        getContext().system().scheduler().scheduleOnce(
+                Duration.create(20000, TimeUnit.MILLISECONDS),
+                getSelf(),
+                new TimeoutW(count - 1, msg.key), // the message to send
+                getContext().system().dispatcher(), getSelf()
+        );
+
+
+    }
+
+    //Handling message for read operation from client
+    private void onretrive(retrive msg) {
+
+        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
+
+
+        //Handling to send read request to the N replicas
+        //ActorRef va = null;
+        int key;
+        int i = 0; //Counter of replica found
+        //boolean first = true;
+        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+
+            key = entry.getKey();
+            ActorRef value = entry.getValue();
+            if (key >= msg.key) {
+                /*if (first) {
+                    va.tell(new read(msg.key, count), getSelf());
+                    i++;
+                    first = false;
+                }*/
+                if (i < main.N) {
+                    value.tell(new read(msg.key, count), getSelf());
+                    i++;
+                } else {
+                    break;
+                }
+            }
+            //va = value;
+        }
+        //Handling the case it was visited all nodes and it wasn't covered all replicas
+        if (msg.key < main.RANGE && i < main.N) {
+            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+                if (i >= main.N) {
+                    break;
+                }
+                key = entry.getKey();
+                ActorRef value = entry.getValue();
+                value.tell(new read(msg.key, count), getSelf());
+                i++;
+
+
+            }
+        }
+        count++; //Raise number of waiting request
+        //Set the timeout to notify if after a period it isn't received R answers
+        getContext().system().scheduler().scheduleOnce(
+                Duration.create(20000, TimeUnit.MILLISECONDS),
+                getSelf(),
+                new TimeoutR(count - 1, msg.key), // the message to send
+                getContext().system().dispatcher(), getSelf()
+        );
+
+
+    }
+
+    //Handle message from coordinator to read the version of a certain object for write operation
+    private void onreadforwrite(readforwrite msg) {
+        if (this.busy.containsKey(msg.key)) { //Check if the object is already in other write operation
+            if (this.busy.get(msg.key)) {
+                return;
+            }
+        }
+        Pair<String, Integer> e = null;
+        if (this.element.containsKey(msg.key)) {
+            e = this.element.get(msg.key);
+
+        }
+        this.busy.put(msg.key, true);
+        if (e == null) {
+            e = new Pair("BESTIALE", -1);
+            System.out.println("ON msg" + msg.key + "write" + "countreq" + msg.count + "vers" + e.getValue());
+            //element.put(msg.key,e);
+        }
+        if (e != null) {
+
+            getSender().tell(new responseRFW(e.getValue(), msg.count, msg.key), getSelf());
+        }
+    }
+
+    //Handle message from coordinator to read a certain object for read operation
+    private void onread(read msg) {
+        if (this.busy.containsKey(msg.key)) {//Check if the object is already in other write operation
+            if (this.busy.get(msg.key)) {
+                return;
+            }
+        }
+        Pair<String, Integer> e = null;
+        if (this.element.containsKey(msg.key)) {
+            e = element.get(msg.key);
+        }
+
+        /*if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
+            e = new Pair("BESTIALE", 0);
+            element.put(msg.key, e);
+        }*/
+        System.out.println("LEGGGERRRE");
+        if (e != null) {
+
+            getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());
+        }
+    }
+
+    //Find in list of objects the one with the maximum version
+    private Pair<String, Integer> max(List<Pair<String, Integer>> l) {
+        int max = -1;
+        Pair<String, Integer> pa = new Pair("0", 0);
+        for (Pair<String, Integer> p : l) {
+            if (p.getValue() > max) {
+                pa.setValue(p.getValue());
+                pa.setKey(p.getKey());
+                max = p.getValue();
+            }
+        }
+
+        return pa;
+
+    }
+
+    //Handling the answer from nodes for read operation
+    private void onresponseRead(responseRead msg) {
+        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read" + "countreq" + msg.count);
+            if (waitC.get(msg.count).count >= main.R - 1) {
+                waitC.get(msg.count).timeout = false;
+                waitC.get(msg.count).success = false;
+
+                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
+            }
+            waitC.get(msg.count).respo.add(msg.e);
+            waitC.get(msg.count).count++;
+
+        }
+
+
+    }
+
+    //Find in list of versions the one with maximum
+    private Integer maxI(List<Integer> l) {
+        int max = -1;
+
+        for (Integer i : l) {
+            if (i > max) {
+                max = i;
+            }
+        }
+
+        return max;
+
+    }
+
+    //Handling the answer from nodes for write operation
+    private void onresponseRFW(responseRFW msg) {
+
+        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
+            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count + "vers" + msg.ver);
+            if (waitC.get(msg.count).count >= main.W - 1) {
+                waitC.get(msg.count).timeout = false;
+                waitC.get(msg.count).success = false;
+                int maxV = maxI(waitC.get(msg.count).version);
+                maxV++;
+                if (msg.key == 0 || msg.key == 1) {
+                    System.out.println("maxV" + maxV + "count" + msg.count);
+
+                }
+                waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
+                for (ActorRef r : waitC.get(msg.count).repl) {
+                    r.tell(new write(msg.key, waitC.get(msg.count).value, maxV), getSelf());
+                }
+            }
+            waitC.get(msg.count).version.add(msg.ver);
+            waitC.get(msg.count).count++;
+
+        }
+
+
+    }
+
+    //Handling the write operation from coordinator
+    private void onwrite(write msg) {
+        this.element.put(msg.key, new Pair(msg.value, msg.ver));
+        this.busy.put(msg.key, false);
+    }
+
+    //Handling the timeout for read operation
+    private void onTimeoutR(TimeoutR msg) {
+        if (waitC.get(msg.count).timeout) {
+            System.out.println("TIMEOOUTRRR");
+            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "read"), getSelf());
+            waitC.get(msg.count).success = false;
+
+        }
+    }
+
+    //Handling the timeout for write operation
+    private void onTimeoutW(TimeoutW msg) {
+        if (waitC.get(msg.count).timeout) {
+            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
+            waitC.get(msg.count).success = false;
+            for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
+                a.tell(new unlock(msg.key), getSelf());
+            }
+
+        }
+    }
+
+    /**
+     * Msg sent by the main, to tell to a node which is his bootsrapper
+     *
+     * @param msg
+     */
+    private void onJoinNode(JoinNode msg) {
+        msg.bootstrapper.tell(new JoinRequest(), getSelf());
+    }
+
+    /**
+     * When a join request is received, this means that this node is now a bootstrapper for a new node
+     *
+     * @param msg
+     */
+    private void onJoinRequest(JoinRequest msg) {
+        sender().tell(new JoinResponse(this.rout), getSelf());
+    }
+
+    /**
+     * Processing the Join Response sent by the bootstrapper. It finds the nearest neighbour, asking to him the
+     * keys this node is responsible for
+     *
+     * @param msg
+     */
+    private void onJoinResponse(JoinResponse msg) {
+        update_rout(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
+        ActorRef neighbour = get_responsible_node(key);
+
+        // ask data to neighbour
+        neighbour.tell(new DataRequest(key), self());
+    }
+
+    private void onDataRequest(DataRequest msg) {
+        Map<Integer, Pair<String, Integer>> selected = select_elements_and_remove(msg.id);
+
+        sender().tell(new DataResponse(selected), getSelf());
+    }
+
+    private void onDataResponse(DataResponse msg) {
+        update_element(msg.data);
+
+        // TODO: check the data with a read
+        for (Integer key : element.keySet()) {
+            ActorRef resp_node = get_responsible_node(key);
+            resp_node.tell(new retrive(key), self());
+        }
+
+        to_be_updated.addAll(msg.data.keySet());
+    }
+
+    /**
+     * This handles responses received from a read request done after a node joins the circle and reads all the elements
+     *
+     * @param msg
+     */
+    private void onResponse(Client.response msg) {
+        to_be_updated.remove(msg.key);
+
+        if (!msg.success || msg.op.equals("read")) {
+            // TODO ?
+            return;
+        }
+
+        put_if_newer(msg.key, msg.p);
+
+        if (to_be_updated.isEmpty()) {
+            // TODO announce node
+        }
+    }
+
+    private void onAnnounceNode(AnnounceNode msg) {
+        // TODO: add new joined node
+        this.rout.put(msg.key, sender());
+    }
+
+    //Handling unlock of object from write operation because of the timeout
+    private void onunlock(unlock msg) {
+        busy.put(msg.key, true);
+    }
+
+    private void onprintElem(printElem msg) {
+
+        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.element.entrySet()) {
+            System.out.println("idN" + this.key + " idE" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+
+        }
+
+    }
+
+    public Receive createReceive() {
+        return receiveBuilder()
+                .match(JoinGroupMsg.class, this::onJoinGroupMsg)
+                .match(retrive.class, this::onretrive)
+                .match(change.class, this::onchange)
+                .match(read.class, this::onread)
+                .match(responseRead.class, this::onresponseRead)
+                .match(TimeoutR.class, this::onTimeoutR)
+                .match(TimeoutW.class, this::onTimeoutW)
+                .match(readforwrite.class, this::onreadforwrite)
+                .match(responseRFW.class, this::onresponseRFW)
+                .match(write.class, this::onwrite)
+                .match(unlock.class, this::onunlock)
+
+                // join messages
+                .match(JoinNode.class, this::onJoinNode)
+                .match(JoinRequest.class, this::onJoinRequest)
+                .match(JoinResponse.class, this::onJoinResponse)
+                .match(DataRequest.class, this::onDataRequest)
+                .match(DataResponse.class, this::onDataResponse)
+                .match(Client.response.class, this::onResponse)
+                .match(AnnounceNode.class, this::onAnnounceNode)
+
+                .build();
     }
 
     //Start message
@@ -283,6 +643,7 @@ public class Node extends AbstractActor {
      */
     public static class AnnounceNode implements Serializable {
         public final Integer key;
+
         public AnnounceNode(Integer key) {
             this.key = key;
         }
@@ -318,395 +679,37 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Handling start message
-    private void onJoinGroupMsg(JoinGroupMsg msg) {
-        //Add map between key and their nodes in DKVS
-        for (Map.Entry<Integer, ActorRef> entry : msg.group.entrySet()) {
-            Integer key = entry.getKey();
-            ActorRef value = entry.getValue();
-            this.rout.put(key, value);
-        }
+    public static class printElem implements Serializable {
     }
 
-    public static class printElem implements Serializable {}
+    //Waiting request of a client
+    public class Req {
 
-    //Handling message for write operation from client
-    private void onchange(change msg) {
-        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
-        waitC.get(count).value = msg.value;
+        int count; //number of response to this request
+        ActorRef a; //Client associated to this request
+        boolean success; //Outcome of the request (successful or unsuccessful)
+        boolean timeout; //Variable that indicates if a timeout can raised against this request
 
+        int key; //Key of object associated to request
+        String value; //Value associated to the request (write operation case)
 
-        //Handling to send read request to the N replicas
-        //ActorRef va = null;
-        int key;
-        int i = 0; //Counter of replica found
-        //boolean first = true; //Handling the first
-        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
+        List<Pair<String, Integer>> respo; //List of object received in the request's answers (read operation case)
 
-            key = entry.getKey();
-            ActorRef value = entry.getValue();
-            if (key >= msg.key) {
-                /*if (first) {
-                    va.tell(new readforwrite(msg.key, count), getSelf());
-                    waitC.get(count).repl.add(va);
-                    i++;
-                    first = false;
-                }*/
-                if (i < main.N) {
-                    value.tell(new readforwrite(msg.key, count), getSelf());
-                    waitC.get(count).repl.add(value);
-                    i++;
-                } else {
-                    break;
-                }
-            }
-            //va = value;
-        }
+        List<ActorRef> repl; //List of replica nodes where this request is sent (write operation case)
 
-        //Handling the case it was visited all nodes and it wasn't covered all replicas
-        if (msg.key < main.RANGE && i < main.N) {
-            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
-                if (i >= main.N) {
-                    break;
-                }
-                key = entry.getKey();
-                ActorRef value = entry.getValue();
-                value.tell(new readforwrite(msg.key, count), getSelf());
-                waitC.get(count).repl.add(value);
-                i++;
+        List<Integer> version; //List of object's version in request's answers (write operation case)
 
-
-            }
-        }
-        count++; //Raise number of waiting request
-        //Set the timeout to notify if after a period it isn't received W answers
-        getContext().system().scheduler().scheduleOnce(
-                Duration.create(20000, TimeUnit.MILLISECONDS),
-                getSelf(),
-                new TimeoutW(count-1, msg.key), // the message to send
-                getContext().system().dispatcher(), getSelf()
-        );
-
-
-
-    }
-
-    //Handling message for read operation from client
-    private void onretrive(retrive msg) {
-
-        waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
-
-
-        //Handling to send read request to the N replicas
-        //ActorRef va = null;
-        int key;
-        int i = 0; //Counter of replica found
-        //boolean first = true;
-        for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
-
-            key = entry.getKey();
-            ActorRef value = entry.getValue();
-            if (key >= msg.key) {
-                /*if (first) {
-                    va.tell(new read(msg.key, count), getSelf());
-                    i++;
-                    first = false;
-                }*/
-                if (i < main.N) {
-                    value.tell(new read(msg.key, count), getSelf());
-                    i++;
-                } else {
-                    break;
-                }
-            }
-            //va = value;
-        }
-        //Handling the case it was visited all nodes and it wasn't covered all replicas
-        if (msg.key < main.RANGE && i < main.N) {
-            for (Map.Entry<Integer, ActorRef> entry : this.rout.entrySet()) {
-                if (i >= main.N) {
-                    break;
-                }
-                key = entry.getKey();
-                ActorRef value = entry.getValue();
-                value.tell(new read(msg.key, count), getSelf());
-                i++;
-
-
-            }
-        }
-        count++; //Raise number of waiting request
-        //Set the timeout to notify if after a period it isn't received R answers
-        getContext().system().scheduler().scheduleOnce(
-                Duration.create(20000, TimeUnit.MILLISECONDS),
-                getSelf(),
-                new TimeoutR(count-1, msg.key), // the message to send
-                getContext().system().dispatcher(), getSelf()
-        );
-
-
-    }
-
-    //Handle message from coordinator to read the version of a certain object for write operation
-    private void onreadforwrite(readforwrite msg) {
-        if (this.busy.containsKey(msg.key)) { //Check if the object is already in other write operation
-            if (this.busy.get(msg.key)) {
-                return;
-            }
-        }
-        Pair<String, Integer> e = null;
-        if(this.element.containsKey(msg.key)){
-            e = this.element.get(msg.key);
+        public Req(ActorRef a, int key) {
+            this.key = key;
+            this.count = 0;
+            this.a = a;
+            this.success = true;
+            this.timeout = true;
+            respo = new ArrayList<Pair<String, Integer>>();
+            version = new ArrayList<Integer>();
+            repl = new ArrayList<ActorRef>();
+            value = "";
 
         }
-        this.busy.put(msg.key, true);
-        if (e == null) {
-            e = new Pair("BESTIALE", -1);
-            System.out.println("ON msg" + msg.key + "write" + "countreq" + msg.count + "vers" + e.getValue());
-            //element.put(msg.key,e);
-        }
-        if (e != null) {
-
-            getSender().tell(new responseRFW(e.getValue(), msg.count, msg.key), getSelf());
-        }
-    }
-
-    //Handle message from coordinator to read a certain object for read operation
-    private void onread(read msg) {
-        if (this.busy.containsKey(msg.key)) {//Check if the object is already in other write operation
-            if (this.busy.get(msg.key)) {
-                return;
-            }
-        }
-        Pair<String, Integer> e = null;
-        if(this.element.containsKey(msg.key)){
-            e = element.get(msg.key);
-        }
-
-        /*if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
-            e = new Pair("BESTIALE", 0);
-            element.put(msg.key, e);
-        }*/
-        System.out.println("LEGGGERRRE");
-        if (e != null) {
-
-            getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());
-        }
-    }
-
-    //Find in list of objects the one with the maximum version
-    private Pair<String, Integer> max(List<Pair<String, Integer>> l) {
-        int max = -1;
-        Pair<String, Integer> pa = new Pair("0", 0);
-        for (Pair<String, Integer> p : l) {
-            if (p.getValue() > max) {
-                pa.setValue(p.getValue());
-                pa.setKey(p.getKey());
-                max = p.getValue();
-            }
-        }
-
-        return pa;
-
-    }
-
-    //Handling the answer from nodes for read operation
-    private void onresponseRead(responseRead msg) {
-        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read" + "countreq" + msg.count);
-            if (waitC.get(msg.count).count >= main.R - 1) {
-                waitC.get(msg.count).timeout = false;
-                waitC.get(msg.count).success = false;
-
-                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
-            }
-            waitC.get(msg.count).respo.add(msg.e);
-            waitC.get(msg.count).count++;
-
-        }
-
-
-    }
-
-    //Find in list of versions the one with maximum
-    private Integer maxI(List<Integer> l) {
-        int max = -1;
-
-        for (Integer i : l) {
-            if (i > max) {
-                max = i;
-            }
-        }
-
-        return max;
-
-    }
-
-    //Handling the answer from nodes for write operation
-    private void onresponseRFW(responseRFW msg) {
-
-        if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count + "vers" + msg.ver);
-            if (waitC.get(msg.count).count >= main.W - 1) {
-                waitC.get(msg.count).timeout = false;
-                waitC.get(msg.count).success = false;
-                int maxV = maxI(waitC.get(msg.count).version);
-                maxV++;
-                if(msg.key == 0 || msg.key == 1){
-                    System.out.println("maxV" + maxV + "count" + msg.count);
-
-                }
-                waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
-                for (ActorRef r : waitC.get(msg.count).repl) {
-                    r.tell(new write(msg.key, waitC.get(msg.count).value, maxV), getSelf());
-                }
-            }
-            waitC.get(msg.count).version.add(msg.ver);
-            waitC.get(msg.count).count++;
-
-        }
-
-
-    }
-
-    //Handling the write operation from coordinator
-    private void onwrite(write msg) {
-        this.element.put(msg.key, new Pair(msg.value, msg.ver));
-        this.busy.put(msg.key, false);
-    }
-
-    //Handling the timeout for read operation
-    private void onTimeoutR(TimeoutR msg) {
-        if (waitC.get(msg.count).timeout) {
-            System.out.println("TIMEOOUTRRR");
-            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "read"), getSelf());
-            waitC.get(msg.count).success = false;
-
-        }
-    }
-
-    //Handling the timeout for write operation
-    private void onTimeoutW(TimeoutW msg) {
-        if (waitC.get(msg.count).timeout) {
-            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
-            waitC.get(msg.count).success = false;
-            for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
-                a.tell(new unlock(msg.key), getSelf());
-            }
-
-        }
-    }
-
-    /**
-     * Msg sent by the main, to tell to a node which is his bootsrapper
-     *
-     * @param msg
-     */
-    private void onJoinNode(JoinNode msg) {
-        msg.bootstrapper.tell(new JoinRequest(), getSelf());
-    }
-
-    /**
-     * When a join request is received, this means that this node is now a bootstrapper for a new node
-     *
-     * @param msg
-     */
-    private void onJoinRequest(JoinRequest msg) {
-        sender().tell(new JoinResponse(this.rout), getSelf());
-    }
-
-    /**
-     * Processing the Join Response sent by the bootstrapper. It finds the nearest neighbour, asking to him the
-     * keys this node is responsible for
-     * @param msg
-     */
-    private void onJoinResponse(JoinResponse msg) {
-        update_rout(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
-        ActorRef neighbour = get_responsible_node(key);
-
-        // ask data to neighbour
-        neighbour.tell(new DataRequest(key), self());
-    }
-
-    private void onDataRequest(DataRequest msg) {
-        Map<Integer, Pair<String, Integer>> selected = select_elements_and_remove(msg.id);
-
-        sender().tell(new DataResponse(selected), getSelf());
-    }
-
-    private void onDataResponse(DataResponse msg) {
-        update_element(msg.data);
-
-        // TODO: check the data with a read
-        for (Integer key : element.keySet()) {
-            ActorRef resp_node = get_responsible_node(key);
-            resp_node.tell(new retrive(key), self());
-        }
-
-        to_be_updated.addAll(msg.data.keySet());
-    }
-
-    /**
-     * This handles responses received from a read request done after a node joins the circle and reads all the elements
-     * @param msg
-     */
-    private void onResponse(Client.response msg) {
-        to_be_updated.remove(msg.key);
-
-         if (!msg.success || msg.op.equals("read")) {
-             // TODO ?
-             return;
-         }
-
-         put_if_newer(msg.key, msg.p);
-
-         if (to_be_updated.isEmpty()) {
-             // TODO announce node
-         }
-    }
-
-    private void onAnnounceNode(AnnounceNode msg) {
-        // TODO: add new joined node
-        this.rout.put(msg.key, sender());
-    }
-
-    //Handling unlock of object from write operation because of the timeout
-    private void onunlock(unlock msg) {
-        busy.put(msg.key, true);
-    }
-
-    private void onprintElem(printElem msg) {
-
-        for(Map.Entry<Integer, Pair<String,Integer>> entry : this.element.entrySet()){
-            System.out.println("idN"+this.key+" idE"+entry.getKey()+" value:"+entry.getValue().getKey()+" version:"+entry.getValue().getValue());
-
-        }
-
-    }
-
-    public Receive createReceive() {
-        return receiveBuilder()
-                .match(JoinGroupMsg.class, this::onJoinGroupMsg)
-                .match(retrive.class, this::onretrive)
-                .match(change.class, this::onchange)
-                .match(read.class, this::onread)
-                .match(responseRead.class, this::onresponseRead)
-                .match(TimeoutR.class, this::onTimeoutR)
-                .match(TimeoutW.class, this::onTimeoutW)
-                .match(readforwrite.class, this::onreadforwrite)
-                .match(responseRFW.class, this::onresponseRFW)
-                .match(write.class, this::onwrite)
-                .match(unlock.class, this::onunlock)
-
-                // join messages
-                .match(JoinNode.class, this::onJoinNode)
-                .match(JoinRequest.class, this::onJoinRequest)
-                .match(JoinResponse.class, this::onJoinResponse)
-                .match(DataRequest.class, this::onDataRequest)
-                .match(DataResponse.class, this::onDataResponse)
-                .match(Client.response.class, this::onResponse)
-                .match(AnnounceNode.class, this::onAnnounceNode)
-
-                .build();
     }
 }

@@ -4,10 +4,8 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Client.printAnswer;
-import it.unitn.ds1.Node.printElem;
 import it.unitn.ds1.Node.JoinGroupMsg;
-import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-//import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
+import it.unitn.ds1.Node.printElem;
 
 import java.io.IOException;
 import java.util.*;
@@ -18,18 +16,14 @@ public class main {
     final static int N = 4; //Number of replicas
     final static int W = 4; //Dimension of read quorum
     final static int R = 1; //Dimension of write quorum
+    final static ActorSystem system = ActorSystem.create("DKVS");
     static int N_NODES = 5; //Number of the initial nodes
     static int N_CLIENTS = 5; //Number of the initial clients
     static List<ActorRef> groupn; //List of nodes in DKVS
-
-
-
-    final static ActorSystem system = ActorSystem.create("DKVS");
+    static Map<Integer, ActorRef> mapgroupn;
 
     public static void main(String[] args) {
-
-
-        Map<Integer, ActorRef> mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and their key
+        mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and their key
 
         groupn = new ArrayList<ActorRef>();
         for (int i = 0; i < N_NODES * 10; i = i + 10) {
@@ -56,7 +50,8 @@ public class main {
         try {
             System.out.println(">>> GO <<<");
             System.in.read();
-        }catch (IOException e) {}
+        } catch (IOException e) {
+        }
 
         // start all the clients
         for (ActorRef client : groupc) {
@@ -85,19 +80,19 @@ public class main {
         }
         try {
             //while(!done) {
-                System.out.println(">>> Press ENTER to print Elemnts<<<");
+            System.out.println(">>> Press ENTER to print Elemnts<<<");
+            System.in.read();
+
+            printElem printa = new printElem();
+
+            for (ActorRef node : groupn) {
+                node.tell(printa, ActorRef.noSender());
+                System.out.println(">>> continue <<<");
                 System.in.read();
+            }
 
-                printElem printa = new printElem();
-
-                for (ActorRef node : groupn) {
-                    node.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-
-                System.out.println(">>> Press ENTER to exit <<<");
-                System.in.read();
+            System.out.println(">>> Press ENTER to exit <<<");
+            System.in.read();
             //}
         } catch (IOException e) {
 
@@ -108,7 +103,7 @@ public class main {
 
     public void create_new_node(Integer id) {
         if (mapgroupn.containsKey(id)) {
-            throw new ValueException("a node with id " + " is already present");
+            throw new RuntimeException("a node with id " + " is already present");
         }
 
         // create new node

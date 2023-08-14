@@ -1,16 +1,18 @@
 package it.unitn.ds1;
+
 import java.util.List;
 import java.util.Map;
 
 public class Utils {
     /**
      * Update a given Map with respect a new one
+     *
      * @param to_be_updated the map to be updated
-     * @param new_map the new map containing new or removed elements
-     * @param <T> the type of the values in the map
+     * @param new_map       the new map containing new or removed elements
+     * @param <T>           the type of the values in the map
      */
     public static <T> void update(Map<Integer, T> to_be_updated,
-                             Map<Integer, T> new_map) {
+                                  Map<Integer, T> new_map) {
 
         // add new elements
         to_be_updated.putAll(new_map);

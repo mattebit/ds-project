@@ -1,7 +1,6 @@
 package it.unitn.ds1;
 
 import akka.actor.AbstractActor;
-import akka.actor.ActorRef;
 import akka.actor.Cancellable;
 import akka.actor.Props;
 import it.unitn.ds1.Node.change;
@@ -10,7 +9,6 @@ import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -20,75 +18,8 @@ public class Client extends AbstractActor {
     //private List<ActorRef> peers = new ArrayList<>();
 
     private final Random rnd = new Random();
-
-    //Class of the answers from nodes
-    public class result {
-
-        Pair<String, Integer> p; //Object value and version
-
-        int key; //Object key
-
-        boolean success; //It indicates if the operation was a success or not
-
-        String op; //Write or read
-
-        //int count; //operatuo
-
-        result(Pair<String, Integer> p, int key, boolean success, String op) {
-            this.key = key;
-            this.success = success;
-            this.p = p;
-            this.op = op;
-
-
-        }
-    }
-
     private final List<result> responseList = new ArrayList<result>(); //List of the answer from the DKVS
     int id; //Id of the client
-
-    //Start message
-    public static class JoinGroupMsgC implements Serializable { }
-
-    //Answer message
-    public static class response implements Serializable {
-        public final Pair<String, Integer> p; //Result object (value,version)
-        public final int key; //Key of the object
-
-        public final Boolean success; //Outcome of the operation
-
-        public final String op; //Type of the operation (write or read) // TODO change to enum
-
-
-        public response(Pair<String, Integer> pair, Boolean success, int key, String op) {
-            this.success = success;
-            this.key = key;
-            if (pair != null) {
-
-                String ind = pair.getKey();
-                Integer value = pair.getValue();
-                this.p = new Pair(ind, value);
-            } else {
-                this.p = null;
-            }
-
-            this.op = op;
-        }
-    }
-
-    //Read messsage
-    public static class get implements Serializable {
-    }
-
-    //Write message
-    public static class update implements Serializable {
-    }
-
-    //Print message
-    public static class printAnswer implements Serializable {
-    }
-
-
     public Client(int id) {
         this.id = id;
     }
@@ -183,7 +114,6 @@ public class Client extends AbstractActor {
 
     }
 
-
     public Receive createReceive() {
         return receiveBuilder()
                 .match(JoinGroupMsgC.class, this::onJoinGroupMsgC)
@@ -192,6 +122,71 @@ public class Client extends AbstractActor {
                 .match(response.class, this::onresponse)
                 .match(printAnswer.class, this::onprintAnswer)
                 .build();
+    }
+
+    //Start message
+    public static class JoinGroupMsgC implements Serializable {
+    }
+
+    //Answer message
+    public static class response implements Serializable {
+        public final Pair<String, Integer> p; //Result object (value,version)
+        public final int key; //Key of the object
+
+        public final Boolean success; //Outcome of the operation
+
+        public final String op; //Type of the operation (write or read) // TODO change to enum
+
+
+        public response(Pair<String, Integer> pair, Boolean success, int key, String op) {
+            this.success = success;
+            this.key = key;
+            if (pair != null) {
+
+                String ind = pair.getKey();
+                Integer value = pair.getValue();
+                this.p = new Pair(ind, value);
+            } else {
+                this.p = null;
+            }
+
+            this.op = op;
+        }
+    }
+
+    //Read messsage
+    public static class get implements Serializable {
+    }
+
+    //Write message
+    public static class update implements Serializable {
+    }
+
+    //Print message
+    public static class printAnswer implements Serializable {
+    }
+
+    //Class of the answers from nodes
+    public class result {
+
+        Pair<String, Integer> p; //Object value and version
+
+        int key; //Object key
+
+        boolean success; //It indicates if the operation was a success or not
+
+        String op; //Write or read
+
+        //int count; //operatuo
+
+        result(Pair<String, Integer> p, int key, boolean success, String op) {
+            this.key = key;
+            this.success = success;
+            this.p = p;
+            this.op = op;
+
+
+        }
     }
 
 
