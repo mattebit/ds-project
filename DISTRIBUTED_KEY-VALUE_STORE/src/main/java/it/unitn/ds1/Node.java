@@ -11,8 +11,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Node extends AbstractActor {
-    private final Map<Integer, ActorRef> nodes = new HashMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
-    private final Map<Integer, Pair<String, Integer>> elements = new HashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
+    private final Map<Integer, ActorRef> nodes = new TreeMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
+    private final Map<Integer, Pair<String, Integer>> elements = new LinkedHashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
@@ -116,6 +116,8 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             this.nodes.put(key, value);
         }
+
+
     }
 
     //Handling message for write operation from client
@@ -345,7 +347,7 @@ public class Node extends AbstractActor {
                 }
                 waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
-                    r.tell(new write(msg.key, waitC.get(msg.count).value, maxV), getSelf());
+                    r.tell(new write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
                 }
             }
             waitC.get(msg.count).version.add(msg.ver);
@@ -358,6 +360,7 @@ public class Node extends AbstractActor {
 
     //Handling the write operation from coordinator
     private void onwrite(write msg) {
+
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
     }
@@ -504,6 +507,7 @@ public class Node extends AbstractActor {
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)
                 .match(unlock.class, this::onunlock)
+                .match(printElem.class,this::onprintElem)
 
                 // join messages
                 .match(JoinNode.class, this::onJoinNode)

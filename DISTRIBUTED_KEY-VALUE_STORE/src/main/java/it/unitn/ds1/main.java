@@ -39,10 +39,10 @@ public class main {
         JoinGroupMsg start = new JoinGroupMsg(mapgroupn);
         // Join messages to the clients to inform them about the nodes
         JoinGroupMsgC start2 = new JoinGroupMsgC();
-
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
             entry.getValue().tell(start, ActorRef.noSender());
+
         }
 
         try {
