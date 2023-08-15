@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Node extends AbstractActor {
     private final Map<Integer, ActorRef> nodes = new TreeMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
-    private final Map<Integer, Pair<String, Integer>> elements = new LinkedHashMap<Integer, Pair<String, Integer>>();  //Object mantained by the node
+    private final MapElements elements = new MapElements();  //Object mantained by the node
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
 
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
@@ -33,40 +33,8 @@ public class Node extends AbstractActor {
         Utils.update_remove(nodes, new_rout);
     }
 
-    public void update_remove_element(Map<Integer, Pair<String, Integer>> new_element) {
-        Utils.update_remove(elements, new_element);
-    }
-
     public void update_nodes(Map<Integer, ActorRef> new_rout) {
         Utils.update_remove(nodes, new_rout);
-    }
-
-    public void update_element(Map<Integer, Pair<String, Integer>> new_element) {
-        Utils.update_remove(elements, new_element);
-    }
-
-
-    /**
-     * Selects and removes all the elements given the new node id.
-     *
-     * @param id the node asking the data
-     */
-    public Map<Integer, Pair<String, Integer>> select_elements_and_remove(Integer id) {
-        Map<Integer, Pair<String, Integer>> selected = new HashMap<>();
-
-        // select keys
-        for (Map.Entry<Integer, Pair<String, Integer>> el : elements.entrySet()) {
-            if (el.getKey() <= id) {
-                selected.put(el.getKey(), el.getValue());
-            }
-        }
-
-        // Remove no-more responsible keys
-        for (Integer key : selected.keySet()) {
-            elements.remove(key);
-        }
-
-        return selected;
     }
 
     /**
@@ -92,20 +60,6 @@ public class Node extends AbstractActor {
             return null;
 
         return this.nodes.get(neighbour_id);
-    }
-
-    /**
-     * Given a key and an element, put it in the Map if newer (if not present it will not be added)
-     *
-     * @param key
-     * @param el
-     */
-    public void put_if_newer(Integer key, Pair<String, Integer> el) {
-        Pair<String, Integer> old_el = elements.get(key);
-
-        if (old_el.getValue() < el.getValue()) {
-            elements.put(key, el);
-        }
     }
 
     //Handling start message
@@ -251,7 +205,7 @@ public class Node extends AbstractActor {
         this.busy.put(msg.key, true);
         if (e == null) {
             e = new Pair("BESTIALE", -1);
-            System.out.println("ON msg" + msg.key + "write" + "countreq" + msg.count + "vers" + e.getValue());
+            System.out.println("ON msg " + msg.key + " write " + " countreq " + msg.count + " vers " + e.getValue());
             //element.put(msg.key,e);
         }
         if (e != null) {
@@ -302,7 +256,7 @@ public class Node extends AbstractActor {
     //Handling the answer from nodes for read operation
     private void onresponseRead(responseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "read" + "countreq" + msg.count);
+            System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " read " + " countreq " + msg.count);
             if (waitC.get(msg.count).count >= main.R - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
@@ -335,14 +289,14 @@ public class Node extends AbstractActor {
     private void onresponseRFW(responseRFW msg) {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
-            System.out.println("msg" + msg.key + " count" + waitC.get(msg.count).count + "write" + "countreq" + msg.count + "vers" + msg.ver);
+            System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " write " + " countreq " + msg.count + " vers " + msg.ver);
             if (waitC.get(msg.count).count >= main.W - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
                 int maxV = maxI(waitC.get(msg.count).version);
                 maxV++;
                 if (msg.key == 0 || msg.key == 1) {
-                    System.out.println("maxV" + maxV + "count" + msg.count);
+                    System.out.println("maxV " + maxV + " count " + msg.count);
 
                 }
                 waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
@@ -420,20 +374,21 @@ public class Node extends AbstractActor {
     }
 
     private void onDataRequest(DataRequest msg) {
-        Map<Integer, Pair<String, Integer>> selected = select_elements_and_remove(msg.id);
+        MapElements selected = elements.get_remove_less_than_key(msg.id);
 
         sender().tell(new DataResponse(selected), getSelf());
     }
 
     private void onDataResponse(DataResponse msg) {
-        update_remove_element(msg.data);
+        elements.update_remove(msg.data);
 
-        // TODO: check the data with a read
+        // check the data with a read
         for (Integer key : elements.keySet()) {
             ActorRef resp_node = get_responsible_node(key);
             resp_node.tell(new retrive(key), self());
         }
 
+        //add to a temporary list
         to_be_updated.addAll(msg.data.keySet());
     }
 
@@ -450,10 +405,13 @@ public class Node extends AbstractActor {
             return;
         }
 
-        put_if_newer(msg.key, msg.p);
+        elements.put_if_newer(msg.key, msg.p);
 
         if (to_be_updated.isEmpty()) {
-            // TODO announce node
+            // announce node to others
+            for (ActorRef n : nodes.values()) {
+                n.tell(new AnnounceNode(key), self());
+            }
         }
     }
 
@@ -470,7 +428,7 @@ public class Node extends AbstractActor {
     private void onprintElem(printElem msg) {
 
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
-            System.out.println("idN" + this.key + " idE" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+            System.out.println("idN " + this.key + " idE " + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
         }
     }
 
@@ -478,19 +436,18 @@ public class Node extends AbstractActor {
         // announce to every node that this is leaving
         // add the data items they are now responsible for
         for (Integer key : nodes.keySet()) {
-            Map<Integer, Pair<String, Integer>> to_give = new HashMap<>();
-
-            for (Map.Entry<Integer, Pair<String, Integer>> el : elements.entrySet()) {
-                if (el.getKey() <= key)
-                    to_give.put(el.getKey(), el.getValue());
-            }
-
-            nodes.get(key).tell(new NodeLeavingInfo(to_give, key), self());
+            nodes.get(key).tell(
+                    new NodeLeavingInfo(
+                            elements.get_remove_less_than_key(key),
+                            key
+                    ),
+                    self()
+            );
         }
     }
 
     private void onNodeLeavingInfo(NodeLeavingInfo msg) {
-        update_element(msg.new_elements); // update the data of the old element (if present)
+        elements.update(msg.new_elements); // update the data of the old element (if present)
         nodes.remove(msg.key); // remove node that leaved
     }
 
@@ -665,9 +622,9 @@ public class Node extends AbstractActor {
     }
 
     public static class DataResponse implements Serializable {
-        public final Map<Integer, Pair<String, Integer>> data;
+        public final MapElements data;
 
-        public DataResponse(Map<Integer, Pair<String, Integer>> data) {
+        public DataResponse(MapElements data) {
             this.data = data;
         }
     }
@@ -720,9 +677,9 @@ public class Node extends AbstractActor {
     }
 
     public static class NodeLeavingInfo implements Serializable {
-        Map<Integer, Pair<String, Integer>> new_elements;
+        MapElements new_elements;
         Integer key;
-        public NodeLeavingInfo(Map<Integer, Pair<String, Integer>> new_elements, Integer key) {
+        public NodeLeavingInfo(MapElements new_elements, Integer key) {
             this.new_elements = new_elements;
             this.key = key;
         }

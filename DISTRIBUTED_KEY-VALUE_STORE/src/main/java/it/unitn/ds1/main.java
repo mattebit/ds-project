@@ -23,7 +23,7 @@ public class main {
     static Map<Integer, ActorRef> mapgroupn;
 
     public static void main(String[] args) {
-        mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and their key
+        mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and t33heir key
 
         for (int i = 0; i < N_NODES * 10; i = i + 10) {
             ActorRef a = system.actorOf(Node.props(i), "node" + i);
@@ -65,8 +65,8 @@ public class main {
 
                 printElem printa = new printElem();
 
-                for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
-                    entry.getValue().tell(printa, ActorRef.noSender());
+                for (ActorRef n : mapgroupn.values()) {
+                    n.tell(printa, ActorRef.noSender());
                     System.out.println(">>> continue <<<");
                     System.in.read();
                 }
