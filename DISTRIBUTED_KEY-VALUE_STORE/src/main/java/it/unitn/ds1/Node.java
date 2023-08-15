@@ -57,7 +57,7 @@ public class Node extends AbstractActor {
         }
 
         if (neighbour_id == -1)
-            return null;
+            neighbour_id = ordered_id.get(0);
 
         return this.nodes.get(neighbour_id);
     }
@@ -306,10 +306,7 @@ public class Node extends AbstractActor {
             }
             waitC.get(msg.count).version.add(msg.ver);
             waitC.get(msg.count).count++;
-
         }
-
-
     }
 
     //Handling the write operation from coordinator
@@ -382,6 +379,14 @@ public class Node extends AbstractActor {
     private void onDataResponse(DataResponse msg) {
         elements.update_remove(msg.data);
 
+        // if there are no elements skip the read and announce itself
+        if (msg.data.isEmpty()) {
+            for (ActorRef n : nodes.values()) {
+                n.tell(new AnnounceNode(this.key), self());
+            }
+            return;
+        }
+
         // check the data with a read
         for (Integer key : elements.keySet()) {
             ActorRef resp_node = get_responsible_node(key);
@@ -416,7 +421,7 @@ public class Node extends AbstractActor {
     }
 
     private void onAnnounceNode(AnnounceNode msg) {
-        // TODO: add new joined node
+        // add new joined node
         this.nodes.put(msg.key, sender());
     }
 
@@ -435,11 +440,11 @@ public class Node extends AbstractActor {
     private void onLeaveRequest(LeaveRequest msg) {
         // announce to every node that this is leaving
         // add the data items they are now responsible for
-        for (Integer key : nodes.keySet()) {
-            nodes.get(key).tell(
+        for (Integer k : nodes.keySet()) {
+            nodes.get(k).tell(
                     new NodeLeavingInfo(
-                            elements.get_remove_less_than_key(key),
-                            key
+                            elements.get_remove_less_than_key(this.key),
+                            this.key
                     ),
                     self()
             );
@@ -464,7 +469,7 @@ public class Node extends AbstractActor {
                 .match(responseRFW.class, this::onresponseRFW)
                 .match(write.class, this::onwrite)
                 .match(unlock.class, this::onunlock)
-                .match(printElem.class,this::onprintElem)
+                .match(printElem.class, this::onprintElem)
 
                 // join messages
                 .match(JoinNode.class, this::onJoinNode)
@@ -679,6 +684,7 @@ public class Node extends AbstractActor {
     public static class NodeLeavingInfo implements Serializable {
         MapElements new_elements;
         Integer key;
+
         public NodeLeavingInfo(MapElements new_elements, Integer key) {
             this.new_elements = new_elements;
             this.key = key;

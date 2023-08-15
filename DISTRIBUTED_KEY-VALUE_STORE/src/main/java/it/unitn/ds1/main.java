@@ -3,10 +3,8 @@ package it.unitn.ds1;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.JoinGroupMsgC;
-import it.unitn.ds1.Client.printAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.printElem;
-import scala.Int;
 
 import java.io.IOException;
 import java.util.*;
@@ -42,7 +40,6 @@ public class main {
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
             entry.getValue().tell(start, ActorRef.noSender());
-
         }
 
         try {
@@ -59,10 +56,16 @@ public class main {
         boolean done = false;
 
         try {
-            while(!done) {
-                System.out.println(">>> Press ENTER to print Elemnts<<<");
+            while (!done) {
+                System.out.println(">>> Press ENTER to print Elements<<<");
                 System.in.read();
 
+                //ActorRef new_node = system.actorOf(Node.props(5), "node" + 5);
+                //new_node.tell(new Node.JoinNode(get_random_node()), ActorRef.noSender());
+
+                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+
+                /*
                 printElem printa = new printElem();
 
                 for (ActorRef n : mapgroupn.values()) {
@@ -70,6 +73,7 @@ public class main {
                     System.out.println(">>> continue <<<");
                     System.in.read();
                 }
+                */
 
                 System.out.println(">>> Press ENTER to exit <<<");
                 System.in.read();

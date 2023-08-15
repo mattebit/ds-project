@@ -6,6 +6,7 @@ import java.util.Map;
 public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
     /**
      * Update the elements in this map without removing them if not present in new map
+     *
      * @param new_map
      */
     public void update(MapElements new_map) {
@@ -13,7 +14,7 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
             Integer el_key = el.getKey();
             Pair<String, Integer> el_value = el.getValue();
 
-            if (this.get(el.getKey()) == null)  {
+            if (this.get(el.getKey()) == null) {
                 // element not present, add
                 this.put(el_key, el_value);
             } else {
@@ -30,6 +31,7 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
 
     /**
      * Update this map to match the new map, also remove elements not present in new map
+     *
      * @param new_map
      */
     public void update_remove(MapElements new_map) {
@@ -40,6 +42,7 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
 
     /**
      * Get all the elements in this map that are smaller than the given key, also removes them from this map.
+     *
      * @param key
      * @return
      */

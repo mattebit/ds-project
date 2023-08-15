@@ -15,7 +15,7 @@ public class Utils {
                                          Map<Integer, T> new_map) {
 
         // add new elements
-        update(to_be_updated,new_map);
+        update(to_be_updated, new_map);
 
         // remove entry not present in new map that are present in to_be_updated
         to_be_updated.entrySet().removeIf(entry -> !new_map.containsKey(entry.getKey()));
@@ -29,7 +29,7 @@ public class Utils {
      * @param <T>           the type of the values in the map
      */
     public static <T> void update(Map<Integer, T> to_be_updated,
-                                         Map<Integer, T> new_map) {
+                                  Map<Integer, T> new_map) {
         // add new elements
         to_be_updated.putAll(new_map);
     }
