@@ -23,11 +23,17 @@ public class Client extends AbstractActor {
 
     public Client(int id) {
         this.id = id;
+
     }
 
     static public Props props(int id) {
         return Props.create(Client.class, () -> new Client(id));
     }
+
+    Cancellable timer1; //Read timer
+
+    Cancellable timer2; //Write timer
+
 
     //Method that starts the operation bt the client
     private void onJoinGroupMsgC(JoinGroupMsgC msg) {
@@ -36,23 +42,47 @@ public class Client extends AbstractActor {
         }*/
 
         //Start of the occurrences of read
-        Cancellable timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
+        /*timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
                 Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new get(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
                 getSelf()                                           // source of the message (myself)
-        );
+        );*/
+
+        for(int i=0;i<4;i++){
+            getContext().system().scheduler().scheduleOnce(
+                    Duration.create(2+i, TimeUnit.SECONDS),
+                    getSelf(),
+                    new get(), // the message to send
+                    getContext().system().dispatcher(), getSelf()
+            );
+
+        }
+
+
         //Start of the occurrences of write
-        Cancellable timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
+        /*timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
                 Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new update(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
                 getSelf()                                           // source of the message (myself)
-        );
+        );*/
+        for(int i=0;i<4;i++){
+            getContext().system().scheduler().scheduleOnce(
+                    Duration.create(3+i, TimeUnit.SECONDS),
+                    getSelf(),
+                    new update(), // the message to send
+                    getContext().system().dispatcher(), getSelf()
+            );
+
+        }
+
+
+
 
     }
 
@@ -63,11 +93,12 @@ public class Client extends AbstractActor {
 
         // model a random network/processing delay
         try {
-            Thread.sleep(rnd.nextInt(10));
+            Thread.sleep(rnd.nextInt(5));
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
         main.get_random_node().tell(new retrive(key), getSelf());
+
     }
 
     //Write method
@@ -77,11 +108,12 @@ public class Client extends AbstractActor {
 
         // model a random network/processing delay
         try {
-            Thread.sleep(rnd.nextInt(10));
+            Thread.sleep(rnd.nextInt(4));
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
         main.get_random_node().tell(new change(key, val), getSelf());
+
     }
 
     //Method to handle the answer from nodes
@@ -110,6 +142,7 @@ public class Client extends AbstractActor {
                 .match(printAnswer.class, this::onprintAnswer)
                 .build();
     }
+
 
     //Start message
     public static class JoinGroupMsgC implements Serializable {

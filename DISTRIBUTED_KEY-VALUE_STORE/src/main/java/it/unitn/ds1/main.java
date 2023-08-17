@@ -53,6 +53,20 @@ public class main {
             client.tell(start2, ActorRef.noSender());
         }
 
+        for (ActorRef client : groupc) {
+            client.tell(start2, ActorRef.noSender());
+        }
+
+       /* try {
+            System.out.println(">>> Block read and write<<<");
+            System.in.read();
+        }catch (IOException e) {}
+
+        BlockTimer block = new BlockTimer();
+        for (ActorRef client : groupc) {
+            client.tell(block, ActorRef.noSender());
+        }*/
+
         boolean done = false;
 
         try {
@@ -63,9 +77,9 @@ public class main {
                 //ActorRef new_node = system.actorOf(Node.props(5), "node" + 5);
                 //new_node.tell(new Node.JoinNode(get_random_node()), ActorRef.noSender());
 
-                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+                //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
 
-                /*
+
                 printElem printa = new printElem();
 
                 for (ActorRef n : mapgroupn.values()) {
@@ -73,7 +87,7 @@ public class main {
                     System.out.println(">>> continue <<<");
                     System.in.read();
                 }
-                */
+
 
                 System.out.println(">>> Press ENTER to exit <<<");
                 System.in.read();
