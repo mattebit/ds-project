@@ -5,6 +5,8 @@ import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.printElem;
+import it.unitn.ds1.Client.BlockTimer;
+import it.unitn.ds1.Client.printAnswer;
 
 import java.io.IOException;
 import java.util.*;
@@ -53,11 +55,7 @@ public class main {
             client.tell(start2, ActorRef.noSender());
         }
 
-        for (ActorRef client : groupc) {
-            client.tell(start2, ActorRef.noSender());
-        }
-
-       /* try {
+        try {
             System.out.println(">>> Block read and write<<<");
             System.in.read();
         }catch (IOException e) {}
@@ -65,10 +63,36 @@ public class main {
         BlockTimer block = new BlockTimer();
         for (ActorRef client : groupc) {
             client.tell(block, ActorRef.noSender());
-        }*/
+        }
 
         boolean done = false;
 
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print answer<<<");
+                System.in.read();
+
+                //ActorRef new_node = system.actorOf(Node.props(5), "node" + 5);
+                //new_node.tell(new Node.JoinNode(get_random_node()), ActorRef.noSender());
+
+                //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+
+
+                printAnswer printa = new printAnswer();
+
+                for (ActorRef n : groupc) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+
+
+                System.out.println(">>> Press ENTER to exit <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {}
+        done = false;
         try {
             while (!done) {
                 System.out.println(">>> Press ENTER to print Elements<<<");

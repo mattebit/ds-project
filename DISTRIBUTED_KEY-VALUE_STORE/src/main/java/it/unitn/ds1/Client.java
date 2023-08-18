@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import java.sql.Timestamp;
+import java.util.Date;
+
 //Clients of the system
 public class Client extends AbstractActor {
     //private List<ActorRef> peers = new ArrayList<>();
@@ -20,6 +23,8 @@ public class Client extends AbstractActor {
     private final Random rnd = new Random();
     private final List<result> responseList = new ArrayList<result>(); //List of the answer from the DKVS
     int id; //Id of the client
+
+    Date date = new Date();
 
     public Client(int id) {
         this.id = id;
@@ -34,6 +39,11 @@ public class Client extends AbstractActor {
 
     Cancellable timer2; //Write timer
 
+    //Method to block the timers
+    private void onBlockTimer(BlockTimer msg) {
+        timer1.cancel();
+        timer2.cancel();
+    }
 
     //Method that starts the operation bt the client
     private void onJoinGroupMsgC(JoinGroupMsgC msg) {
@@ -41,45 +51,47 @@ public class Client extends AbstractActor {
             this.peers.add(b);
         }*/
 
+
+
+
+        //Start of the occurrences of write
+        timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
+                Duration.create(3, TimeUnit.SECONDS),        // when to start generating messages
+                Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
+                getSelf(),                                          // destination actor reference
+                new update(),                                // the message to send
+                getContext().system().dispatcher(),                 // system dispatcher
+                getSelf()                                           // source of the message (myself)
+        );
+        /*for(int i=0;i<4;i++){
+            getContext().system().scheduler().scheduleOnce(
+                    Duration.create(2+i, TimeUnit.SECONDS),
+                    getSelf(),
+                    new update(), // the message to send
+                    getContext().system().dispatcher(), getSelf()
+            );
+
+        }*/
+
         //Start of the occurrences of read
-        /*timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
+        timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
                 Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
                 new get(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
                 getSelf()                                           // source of the message (myself)
-        );*/
+        );
 
-        for(int i=0;i<4;i++){
+        /*for(int i=0;i<4;i++){
             getContext().system().scheduler().scheduleOnce(
-                    Duration.create(2+i, TimeUnit.SECONDS),
+                    Duration.create(3+i, TimeUnit.SECONDS),
                     getSelf(),
                     new get(), // the message to send
                     getContext().system().dispatcher(), getSelf()
             );
 
-        }
-
-
-        //Start of the occurrences of write
-        /*timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
-                Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
-                Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
-                getSelf(),                                          // destination actor reference
-                new update(),                                // the message to send
-                getContext().system().dispatcher(),                 // system dispatcher
-                getSelf()                                           // source of the message (myself)
-        );*/
-        for(int i=0;i<4;i++){
-            getContext().system().scheduler().scheduleOnce(
-                    Duration.create(3+i, TimeUnit.SECONDS),
-                    getSelf(),
-                    new update(), // the message to send
-                    getContext().system().dispatcher(), getSelf()
-            );
-
-        }
+        }*/
 
 
 
@@ -118,17 +130,17 @@ public class Client extends AbstractActor {
 
     //Method to handle the answer from nodes
     private void onresponse(response msg) {
-        responseList.add(new result(msg.p, msg.key, msg.success, msg.op));
+        responseList.add(new result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
 
     //Method to handle the print of answers to the client
     private void onprintAnswer(printAnswer msg) {
         for (result r : responseList) {
             if (r != null && r.success) {
-                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success);
+                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
             }
             if (r != null && !r.success) {
-                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success);
+                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t );
             }
         }
     }
@@ -140,12 +152,17 @@ public class Client extends AbstractActor {
                 .match(update.class, this::onupdate)
                 .match(response.class, this::onresponse)
                 .match(printAnswer.class, this::onprintAnswer)
+                .match(BlockTimer.class, this::onBlockTimer)
                 .build();
     }
 
 
     //Start message
     public static class JoinGroupMsgC implements Serializable {
+    }
+
+    //Message to block the timers
+    public static class BlockTimer implements Serializable {
     }
 
     //Answer message
@@ -199,11 +216,14 @@ public class Client extends AbstractActor {
 
         //int count; //operatuo
 
-        result(Pair<String, Integer> p, int key, boolean success, String op) {
+        Timestamp t; //Time when the answer arrive to the client
+
+        result(Pair<String, Integer> p, int key, boolean success, String op, Timestamp t) {
             this.key = key;
             this.success = success;
             this.p = p;
             this.op = op;
+            this.t = t;
         }
     }
 }

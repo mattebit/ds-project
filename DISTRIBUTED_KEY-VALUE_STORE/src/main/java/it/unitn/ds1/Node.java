@@ -6,6 +6,7 @@ import akka.actor.Props;
 import it.unitn.ds1.Client.response;
 import scala.concurrent.duration.Duration;
 
+
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -242,7 +243,7 @@ public class Node extends AbstractActor {
         int max = -1;
         Pair<String, Integer> pa = new Pair("0", 0);
         for (Pair<String, Integer> p : l) {
-            if (p.getValue() > max) {
+            if (p.getValue() >= max) {
                 pa.setValue(p.getValue());
                 pa.setKey(p.getKey());
                 max = p.getValue();
@@ -257,13 +258,14 @@ public class Node extends AbstractActor {
     private void onresponseRead(responseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
             System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " read " + " countreq " + msg.count);
+            waitC.get(msg.count).respo.add(msg.e);
             if (waitC.get(msg.count).count >= main.R - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
 
                 waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
             }
-            waitC.get(msg.count).respo.add(msg.e);
+
             waitC.get(msg.count).count++;
 
         }
@@ -290,6 +292,7 @@ public class Node extends AbstractActor {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
             System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " write " + " countreq " + msg.count + " vers " + msg.ver);
+            waitC.get(msg.count).version.add(msg.ver);
             if (waitC.get(msg.count).count >= main.W - 1) {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
@@ -304,7 +307,7 @@ public class Node extends AbstractActor {
                     r.tell(new write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
                 }
             }
-            waitC.get(msg.count).version.add(msg.ver);
+
             waitC.get(msg.count).count++;
         }
     }
