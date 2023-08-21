@@ -459,8 +459,19 @@ public class Node extends AbstractActor {
         nodes.remove(msg.key); // remove node that leaved
     }
 
+    private void oncrash(Crash c) {
+        crash();
+    }
+
+    private void crash() {
+        getContext().become(crashed());
+    }
+    private void onRecoveryMsg(RecoveryMsg r) {}
+
+    //Normal behaviour
     public Receive createReceive() {
         return receiveBuilder()
+                //Write and read messages
                 .match(JoinGroupMsg.class, this::onJoinGroupMsg)
                 .match(retrive.class, this::onretrive)
                 .match(change.class, this::onchange)
@@ -487,8 +498,23 @@ public class Node extends AbstractActor {
                 .match(LeaveRequest.class, this::onLeaveRequest)
                 .match(NodeLeavingInfo.class, this::onNodeLeavingInfo)
 
+                //Crash message
+                .match(Crash.class, this::oncrash)
+
                 .build();
     }
+    //Crash behaviour
+    final AbstractActor.Receive crashed() {
+        return receiveBuilder()
+                .match(RecoveryMsg.class, this::onRecoveryMsg)
+                .build();
+    }
+
+    //Crash message
+    public static class Crash implements Serializable {}
+
+    //Recovery message
+    public static class RecoveryMsg implements Serializable {}
 
     //Start message
     public static class JoinGroupMsg implements Serializable {
@@ -693,6 +719,8 @@ public class Node extends AbstractActor {
             this.key = key;
         }
     }
+
+
 
     //Waiting request of a client
     public class Req {
