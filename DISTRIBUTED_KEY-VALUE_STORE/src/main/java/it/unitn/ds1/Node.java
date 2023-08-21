@@ -459,13 +459,17 @@ public class Node extends AbstractActor {
         nodes.remove(msg.key); // remove node that leaved
     }
 
+    //Handling the crash message
     private void oncrash(Crash c) {
         crash();
     }
 
+    //Change to crash state
     private void crash() {
         getContext().become(crashed());
     }
+
+    //Handling the recovery message
     private void onRecoveryMsg(RecoveryMsg r) {}
 
     //Normal behaviour
