@@ -39,13 +39,21 @@ public class Client extends AbstractActor {
 
     Cancellable timer2; //Write timer
 
-    //Method to block the timers
+    /**
+     * Method to block the timers
+     *
+     * @param msg
+     */
     private void onBlockTimer(BlockTimer msg) {
         timer1.cancel();
         timer2.cancel();
     }
 
-    //Method that starts the operation bt the client
+    /**
+     * Method that starts the operation bt the client
+     *
+     * @param msg
+     */
     private void onJoinGroupMsgC(JoinGroupMsgC msg) {
         /*for (ActorRef b: msg.group) {
             this.peers.add(b);
@@ -97,8 +105,11 @@ public class Client extends AbstractActor {
 
 
     }
-
-    //Read method
+    /**
+     * Read method
+     *
+     * @param msg
+     */
     private void onget(get msg) {
         int to = rnd.nextInt(main.mapgroupn.size()); //Choice a random target node
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
@@ -112,8 +123,11 @@ public class Client extends AbstractActor {
         main.get_random_node().tell(new retrive(key), getSelf());
 
     }
-
-    //Write method
+    /**
+     * Write method
+     *
+     * @param msg
+     */
     private void onupdate(update msg) {
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
         String val = Integer.toString(this.id); //Value to write
@@ -127,13 +141,19 @@ public class Client extends AbstractActor {
         main.get_random_node().tell(new change(key, val), getSelf());
 
     }
-
-    //Method to handle the answer from nodes
+    /**
+     * Method to handle the answer from nodes
+     *
+     * @param msg
+     */
     private void onresponse(response msg) {
         responseList.add(new result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
-
-    //Method to handle the print of answers to the client
+    /**
+     * Method to handle the print of answers to the client
+     *
+     * @param msg
+     */
     private void onprintAnswer(printAnswer msg) {
         for (result r : responseList) {
             if (r != null && r.success) {

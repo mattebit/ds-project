@@ -26,6 +26,7 @@ public class Node extends AbstractActor {
         this.count = 0;
     }
 
+
     static public Props props(int id) {
         return Props.create(Node.class, () -> new Node(id));
     }
@@ -62,8 +63,11 @@ public class Node extends AbstractActor {
 
         return this.nodes.get(neighbour_id);
     }
-
-    //Handling start message
+    /**
+     * Handling start message
+     *
+     * @param msg
+     */
     private void onJoinGroupMsg(JoinGroupMsg msg) {
         //Add map between key and their nodes in DKVS
         for (Map.Entry<Integer, ActorRef> entry : msg.group.entrySet()) {
@@ -74,8 +78,11 @@ public class Node extends AbstractActor {
 
 
     }
-
-    //Handling message for write operation from client
+    /**
+     * Handling message for write operation from client
+     *
+     * @param msg
+     */
     private void onchange(change msg) {
         waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
         waitC.get(count).value = msg.value;
@@ -134,8 +141,11 @@ public class Node extends AbstractActor {
 
 
     }
-
-    //Handling message for read operation from client
+    /**
+     * Handling message for read operation from client
+     *
+     * @param msg
+     */
     private void onretrive(retrive msg) {
 
         waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
@@ -190,8 +200,11 @@ public class Node extends AbstractActor {
 
 
     }
-
-    //Handle message from coordinator to read the version of a certain object for write operation
+    /**
+     * Handle message from coordinator to read the version of a certain object for write operation
+     *
+     * @param msg
+     */
     private void onreadforwrite(readforwrite msg) {
         if (this.busy.containsKey(msg.key)) { //Check if the object is already in other write operation
             if (this.busy.get(msg.key)) {
@@ -214,8 +227,11 @@ public class Node extends AbstractActor {
             getSender().tell(new responseRFW(e.getValue(), msg.count, msg.key), getSelf());
         }
     }
-
-    //Handle message from coordinator to read a certain object for read operation
+    /**
+     * Handle message from coordinator to read a certain object for read operation
+     *
+     * @param msg
+     */
     private void onread(read msg) {
         if (this.busy.containsKey(msg.key)) {//Check if the object is already in other write operation
             if (this.busy.get(msg.key)) {
@@ -237,8 +253,12 @@ public class Node extends AbstractActor {
             getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());
         }
     }
-
-    //Find in list of objects the one with the maximum version
+    /**
+     * Find in list of objects the one with the maximum version
+     *
+     * @param l
+     * @return
+     */
     private Pair<String, Integer> max(List<Pair<String, Integer>> l) {
         int max = -1;
         Pair<String, Integer> pa = new Pair("0", 0);
@@ -253,8 +273,11 @@ public class Node extends AbstractActor {
         return pa;
 
     }
-
-    //Handling the answer from nodes for read operation
+    /**
+     * Handling the answer from nodes for read operation
+     *
+     * @param msg
+     */
     private void onresponseRead(responseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
             System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " read " + " countreq " + msg.count);
@@ -272,8 +295,12 @@ public class Node extends AbstractActor {
 
 
     }
-
-    //Find in list of versions the one with maximum
+    /**
+     * Find in list of versions the one with maximum
+     *
+     * @param l
+     * @return
+     */
     private Integer maxI(List<Integer> l) {
         int max = -1;
 
@@ -286,8 +313,11 @@ public class Node extends AbstractActor {
         return max;
 
     }
-
-    //Handling the answer from nodes for write operation
+    /**
+     * Handling the answer from nodes for write operation
+     *
+     * @param msg
+     */
     private void onresponseRFW(responseRFW msg) {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
@@ -311,15 +341,21 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).count++;
         }
     }
-
-    //Handling the write operation from coordinator
+    /**
+     * Handling the write operation from coordinator
+     *
+     * @param msg
+     */
     private void onwrite(write msg) {
 
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
     }
-
-    //Handling the timeout for read operation
+    /**
+     * //Handling the timeout for read operation
+     *
+     * @param msg
+     */
     private void onTimeoutR(TimeoutR msg) {
         if (waitC.get(msg.count).timeout) {
             System.out.println("TIMEOOUTRRR");
@@ -328,8 +364,11 @@ public class Node extends AbstractActor {
 
         }
     }
-
-    //Handling the timeout for write operation
+    /**
+     * Handling the timeout for write operation
+     *
+     * @param msg
+     */
     private void onTimeoutW(TimeoutW msg) {
         if (waitC.get(msg.count).timeout) {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
@@ -427,12 +466,19 @@ public class Node extends AbstractActor {
         // add new joined node
         this.nodes.put(msg.key, sender());
     }
-
-    //Handling unlock of object from write operation because of the timeout
+    /**
+     * Handling unlock of object from write operation because of the timeout
+     *
+     * @param msg
+     */
     private void onunlock(unlock msg) {
         busy.put(msg.key, true);
     }
-
+    /**
+     * Print objects maneged by the node
+     *
+     * @param msg
+     */
     private void onprintElem(printElem msg) {
 
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
@@ -458,19 +504,28 @@ public class Node extends AbstractActor {
         elements.update(msg.new_elements); // update the data of the old element (if present)
         nodes.remove(msg.key); // remove node that leaved
     }
+    /**
+     * Handling the crash message
+     *
+     * @param msg
+     */
+    private void oncrash(Crashmsg msg) {
 
-    //Handling the crash message
-    private void oncrash(Crash c) {
+        nodes.remove(this.key);
         crash();
     }
-
-    //Change to crash state
+    /**
+     * Change to crash state
+     */
     private void crash() {
         getContext().become(crashed());
     }
-
-    //Handling the recovery message
-    private void onRecoveryMsg(RecoveryMsg r) {}
+    /**
+     * Handling the recovery message
+     *
+     * @param msg
+     */
+    private void onRecoveryMsg(RecoveryMsg msg) {}
 
     //Normal behaviour
     public Receive createReceive() {
@@ -503,7 +558,7 @@ public class Node extends AbstractActor {
                 .match(NodeLeavingInfo.class, this::onNodeLeavingInfo)
 
                 //Crash message
-                .match(Crash.class, this::oncrash)
+                .match(Crashmsg.class, this::oncrash)
 
                 .build();
     }
@@ -515,7 +570,7 @@ public class Node extends AbstractActor {
     }
 
     //Crash message
-    public static class Crash implements Serializable {}
+    public static class Crashmsg implements Serializable { }
 
     //Recovery message
     public static class RecoveryMsg implements Serializable {}
