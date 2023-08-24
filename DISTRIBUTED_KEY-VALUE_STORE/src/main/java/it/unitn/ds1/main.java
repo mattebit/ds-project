@@ -4,9 +4,9 @@ import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Node.JoinGroupMsg;
-import it.unitn.ds1.Node.printElem;
+import it.unitn.ds1.Node.PrintElem;
 import it.unitn.ds1.Client.BlockTimer;
-import it.unitn.ds1.Client.printAnswer;
+import it.unitn.ds1.Client.PrintAnswer;
 
 import java.io.IOException;
 import java.util.*;
@@ -78,7 +78,7 @@ public class main {
                 //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
 
 
-                printAnswer printa = new printAnswer();
+                PrintAnswer printa = new PrintAnswer();
 
                 for (ActorRef n : groupc) {
                     n.tell(printa, ActorRef.noSender());
@@ -104,7 +104,7 @@ public class main {
                 //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
 
 
-                printElem printa = new printElem();
+                PrintElem printa = new PrintElem();
 
                 for (ActorRef n : mapgroupn.values()) {
                     n.tell(printa, ActorRef.noSender());

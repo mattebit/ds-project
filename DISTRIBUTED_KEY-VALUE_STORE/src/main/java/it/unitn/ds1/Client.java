@@ -3,8 +3,8 @@ package it.unitn.ds1;
 import akka.actor.AbstractActor;
 import akka.actor.Cancellable;
 import akka.actor.Props;
-import it.unitn.ds1.Node.change;
-import it.unitn.ds1.Node.retrive;
+import it.unitn.ds1.Node.Change;
+import it.unitn.ds1.Node.Retrive;
 import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
@@ -21,7 +21,7 @@ public class Client extends AbstractActor {
     //private List<ActorRef> peers = new ArrayList<>();
 
     private final Random rnd = new Random();
-    private final List<result> responseList = new ArrayList<result>(); //List of the answer from the DKVS
+    private final List<Result> responseList = new ArrayList<Result>(); //List of the answer from the DKVS
     int id; //Id of the client
 
     Date date = new Date();
@@ -67,7 +67,7 @@ public class Client extends AbstractActor {
                 Duration.create(3, TimeUnit.SECONDS),        // when to start generating messages
                 Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
-                new update(),                                // the message to send
+                new Update(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
                 getSelf()                                           // source of the message (myself)
         );
@@ -86,7 +86,7 @@ public class Client extends AbstractActor {
                 Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
                 Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
                 getSelf(),                                          // destination actor reference
-                new get(),                                // the message to send
+                new Get(),                                // the message to send
                 getContext().system().dispatcher(),                 // system dispatcher
                 getSelf()                                           // source of the message (myself)
         );
@@ -110,7 +110,7 @@ public class Client extends AbstractActor {
      *
      * @param msg
      */
-    private void onget(get msg) {
+    private void onget(Get msg) {
         int to = rnd.nextInt(main.mapgroupn.size()); //Choice a random target node
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
 
@@ -120,7 +120,7 @@ public class Client extends AbstractActor {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        main.get_random_node().tell(new retrive(key), getSelf());
+        main.get_random_node().tell(new Retrive(key), getSelf());
 
     }
     /**
@@ -128,7 +128,7 @@ public class Client extends AbstractActor {
      *
      * @param msg
      */
-    private void onupdate(update msg) {
+    private void onupdate(Update msg) {
         int key = rnd.nextInt(main.RANGE); //Choice a random target object key
         String val = Integer.toString(this.id); //Value to write
 
@@ -138,7 +138,7 @@ public class Client extends AbstractActor {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        main.get_random_node().tell(new change(key, val), getSelf());
+        main.get_random_node().tell(new Change(key, val), getSelf());
 
     }
     /**
@@ -147,15 +147,15 @@ public class Client extends AbstractActor {
      * @param msg
      */
     private void onresponse(response msg) {
-        responseList.add(new result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
+        responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
     /**
      * Method to handle the print of answers to the client
      *
      * @param msg
      */
-    private void onprintAnswer(printAnswer msg) {
-        for (result r : responseList) {
+    private void onprintAnswer(PrintAnswer msg) {
+        for (Result r : responseList) {
             if (r != null && r.success) {
                 System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
             }
@@ -168,10 +168,10 @@ public class Client extends AbstractActor {
     public Receive createReceive() {
         return receiveBuilder()
                 .match(JoinGroupMsgC.class, this::onJoinGroupMsgC)
-                .match(get.class, this::onget)
-                .match(update.class, this::onupdate)
+                .match(Get.class, this::onget)
+                .match(Update.class, this::onupdate)
                 .match(response.class, this::onresponse)
-                .match(printAnswer.class, this::onprintAnswer)
+                .match(PrintAnswer.class, this::onprintAnswer)
                 .match(BlockTimer.class, this::onBlockTimer)
                 .build();
     }
@@ -211,20 +211,20 @@ public class Client extends AbstractActor {
         }
     }
 
-    //Read messsage
-    public static class get implements Serializable {
+    //Read message
+    public static class Get implements Serializable {
     }
 
     //Write message
-    public static class update implements Serializable {
+    public static class Update implements Serializable {
     }
 
     //Print message
-    public static class printAnswer implements Serializable {
+    public static class PrintAnswer implements Serializable {
     }
 
     //Class of the answers from nodes
-    public class result {
+    public class Result {
 
         Pair<String, Integer> p; //Object value and version
 
@@ -238,7 +238,7 @@ public class Client extends AbstractActor {
 
         Timestamp t; //Time when the answer arrive to the client
 
-        result(Pair<String, Integer> p, int key, boolean success, String op, Timestamp t) {
+        Result(Pair<String, Integer> p, int key, boolean success, String op, Timestamp t) {
             this.key = key;
             this.success = success;
             this.p = p;

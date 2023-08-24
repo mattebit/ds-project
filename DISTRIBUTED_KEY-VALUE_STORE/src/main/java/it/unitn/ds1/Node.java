@@ -83,7 +83,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onchange(change msg) {
+    private void onchange(Change msg) {
         waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
         waitC.get(count).value = msg.value;
 
@@ -99,13 +99,13 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             if (key >= msg.key) {
                 /*if (first) {
-                    va.tell(new readforwrite(msg.key, count), getSelf());
+                    va.tell(new Readforwrite(msg.key, count), getSelf());
                     waitC.get(count).repl.add(va);
                     i++;
                     first = false;
                 }*/
                 if (i < main.N) {
-                    value.tell(new readforwrite(msg.key, count), getSelf());
+                    value.tell(new Readforwrite(msg.key, count), getSelf());
                     waitC.get(count).repl.add(value);
                     i++;
                 } else {
@@ -123,7 +123,7 @@ public class Node extends AbstractActor {
                 }
                 key = entry.getKey();
                 ActorRef value = entry.getValue();
-                value.tell(new readforwrite(msg.key, count), getSelf());
+                value.tell(new Readforwrite(msg.key, count), getSelf());
                 waitC.get(count).repl.add(value);
                 i++;
 
@@ -146,7 +146,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onretrive(retrive msg) {
+    private void onretrive(Retrive msg) {
 
         waitC.put(count, new Req(getSender(), msg.key)); //Add new waiting request
 
@@ -167,7 +167,7 @@ public class Node extends AbstractActor {
                     first = false;
                 }*/
                 if (i < main.N) {
-                    value.tell(new read(msg.key, count), getSelf());
+                    value.tell(new Read(msg.key, count), getSelf());
                     i++;
                 } else {
                     break;
@@ -183,7 +183,7 @@ public class Node extends AbstractActor {
                 }
                 key = entry.getKey();
                 ActorRef value = entry.getValue();
-                value.tell(new read(msg.key, count), getSelf());
+                value.tell(new Read(msg.key, count), getSelf());
                 i++;
 
 
@@ -205,7 +205,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onreadforwrite(readforwrite msg) {
+    private void onreadforwrite(Readforwrite msg) {
         if (this.busy.containsKey(msg.key)) { //Check if the object is already in other write operation
             if (this.busy.get(msg.key)) {
                 return;
@@ -224,7 +224,7 @@ public class Node extends AbstractActor {
         }
         if (e != null) {
 
-            getSender().tell(new responseRFW(e.getValue(), msg.count, msg.key), getSelf());
+            getSender().tell(new ResponseRFW(e.getValue(), msg.count, msg.key), getSelf());
         }
     }
     /**
@@ -232,7 +232,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onread(read msg) {
+    private void onread(Read msg) {
         if (this.busy.containsKey(msg.key)) {//Check if the object is already in other write operation
             if (this.busy.get(msg.key)) {
                 return;
@@ -250,7 +250,7 @@ public class Node extends AbstractActor {
         //System.out.println("LEGGGERRRE");
         if (e != null) {
 
-            getSender().tell(new responseRead(e, msg.count, msg.key), getSelf());
+            getSender().tell(new ResponseRead(e, msg.count, msg.key), getSelf());
         }
     }
     /**
@@ -278,7 +278,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onresponseRead(responseRead msg) {
+    private void onresponseRead(ResponseRead msg) {
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
             System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " read " + " countreq " + msg.count);
             waitC.get(msg.count).respo.add(msg.e);
@@ -318,7 +318,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onresponseRFW(responseRFW msg) {
+    private void onresponseRFW(ResponseRFW msg) {
 
         if (waitC.get(msg.count) != null && waitC.get(msg.count).success && waitC.get(msg.count).key == msg.key) {
             System.out.println("msg " + msg.key + " count " + waitC.get(msg.count).count + " write " + " countreq " + msg.count + " vers " + msg.ver);
@@ -334,7 +334,7 @@ public class Node extends AbstractActor {
                 }
                 waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
-                    r.tell(new write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
+                    r.tell(new Write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
                 }
             }
 
@@ -346,7 +346,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onwrite(write msg) {
+    private void onwrite(Write msg) {
 
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
@@ -374,7 +374,7 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
             waitC.get(msg.count).success = false;
             for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
-                a.tell(new unlock(msg.key), getSelf());
+                a.tell(new Unlock(msg.key), getSelf());
             }
 
         }
@@ -432,7 +432,7 @@ public class Node extends AbstractActor {
         // check the data with a read
         for (Integer key : elements.keySet()) {
             ActorRef resp_node = get_responsible_node(key);
-            resp_node.tell(new retrive(key), self());
+            resp_node.tell(new Retrive(key), self());
         }
 
         //add to a temporary list
@@ -471,7 +471,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onunlock(unlock msg) {
+    private void onunlock(Unlock msg) {
         busy.put(msg.key, true);
     }
     /**
@@ -479,7 +479,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onprintElem(printElem msg) {
+    private void onprintElem(PrintElem msg) {
 
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
             System.out.println("idN " + this.key + " idE " + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
@@ -532,17 +532,17 @@ public class Node extends AbstractActor {
         return receiveBuilder()
                 //Write and read messages
                 .match(JoinGroupMsg.class, this::onJoinGroupMsg)
-                .match(retrive.class, this::onretrive)
-                .match(change.class, this::onchange)
-                .match(read.class, this::onread)
-                .match(responseRead.class, this::onresponseRead)
+                .match(Retrive.class, this::onretrive)
+                .match(Change.class, this::onchange)
+                .match(Read.class, this::onread)
+                .match(ResponseRead.class, this::onresponseRead)
                 .match(TimeoutR.class, this::onTimeoutR)
                 .match(TimeoutW.class, this::onTimeoutW)
-                .match(readforwrite.class, this::onreadforwrite)
-                .match(responseRFW.class, this::onresponseRFW)
-                .match(write.class, this::onwrite)
-                .match(unlock.class, this::onunlock)
-                .match(printElem.class, this::onprintElem)
+                .match(Readforwrite.class, this::onreadforwrite)
+                .match(ResponseRFW.class, this::onresponseRFW)
+                .match(Write.class, this::onwrite)
+                .match(Unlock.class, this::onunlock)
+                .match(PrintElem.class, this::onprintElem)
 
                 // join messages
                 .match(JoinNode.class, this::onJoinNode)
@@ -585,42 +585,42 @@ public class Node extends AbstractActor {
     }
 
     //Read message from Client
-    public static class retrive implements Serializable {
+    public static class Retrive implements Serializable {
         public final int key;   //Key of object Client wants to read
 
-        public retrive(int key) {
+        public Retrive(int key) {
             this.key = key;
         }
     }
 
     //Write message from Client
-    public static class change implements Serializable {
+    public static class Change implements Serializable {
         public final int key; //Key of object client wants to insert
         public final String value; //Value of object client wants to insert
 
-        public change(int key, String val) {
+        public Change(int key, String val) {
             this.key = key;
             this.value = val;
         }
     }
 
     //Read message from coordinator to specific nodes
-    public static class read implements Serializable {
+    public static class Read implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
 
-        public read(int key, int count) {
+        public Read(int key, int count) {
             this.key = key;
             this.count = count;
         }
     }
 
     //Read message from coordinator for write operation purpose
-    public static class readforwrite implements Serializable {
+    public static class Readforwrite implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
 
-        public readforwrite(int key, int count) {
+        public Readforwrite(int key, int count) {
             this.key = key;
             this.count = count;
         }
@@ -659,13 +659,13 @@ public class Node extends AbstractActor {
     }
 
     //Answer from nodes to the coordinator in read operation
-    public static class responseRead implements Serializable {
+    public static class ResponseRead implements Serializable {
         public final Pair<String, Integer> e; //Object (value and version) requested
         public final int count; //Key of waiting request associated with the read operation
 
         public final int key; //Key of object associated with the read operation
 
-        public responseRead(Pair<String, Integer> pair, int count, int key) {
+        public ResponseRead(Pair<String, Integer> pair, int count, int key) {
             String ind = pair.getKey();
             Integer value = pair.getValue();
             this.e = new Pair<String, Integer>(ind, value);
@@ -677,12 +677,12 @@ public class Node extends AbstractActor {
     }
 
     //Answer from nodes to the coordinator in write operation
-    public static class responseRFW implements Serializable {
+    public static class ResponseRFW implements Serializable {
         public final int count; //Key of waiting request associated with the write operation
         public final int key; //Key of object associated with the write operation
         public final int ver; //Version of object associated with the write operation
 
-        public responseRFW(Integer ver, int count, int key) {
+        public ResponseRFW(Integer ver, int count, int key) {
 
             this.ver = ver;
             this.count = count;
@@ -693,12 +693,12 @@ public class Node extends AbstractActor {
     }
 
     //Write message from coordinator to specific nodes
-    public static class write implements Serializable {
+    public static class Write implements Serializable {
         public final String value; //Value of object coordinator wants to insert
         public final int key; //Key of object coordinator wants to insert
         public final int ver; //Value of object coordinator wants to insert
 
-        public write(Integer ver, String value, int key) {
+        public Write(Integer ver, String value, int key) {
 
             this.ver = ver;
             this.value = value;
@@ -733,10 +733,10 @@ public class Node extends AbstractActor {
         }
     }
 
-    public static class unlock implements Serializable {
+    public static class Unlock implements Serializable {
         public final int key; //Key of object coordinator wants to unlock
 
-        public unlock(int key) {
+        public Unlock(int key) {
             this.key = key;
         }
     }
@@ -763,7 +763,7 @@ public class Node extends AbstractActor {
         }
     }
 
-    public static class printElem implements Serializable {
+    public static class PrintElem implements Serializable {
     }
 
     public static class LeaveRequest implements Serializable {
