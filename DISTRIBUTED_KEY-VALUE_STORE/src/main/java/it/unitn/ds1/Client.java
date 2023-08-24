@@ -146,7 +146,7 @@ public class Client extends AbstractActor {
      *
      * @param msg
      */
-    private void onresponse(response msg) {
+    private void onresponse(Response msg) {
         responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
     /**
@@ -170,7 +170,7 @@ public class Client extends AbstractActor {
                 .match(JoinGroupMsgC.class, this::onJoinGroupMsgC)
                 .match(Get.class, this::onget)
                 .match(Update.class, this::onupdate)
-                .match(response.class, this::onresponse)
+                .match(Response.class, this::onresponse)
                 .match(PrintAnswer.class, this::onprintAnswer)
                 .match(BlockTimer.class, this::onBlockTimer)
                 .build();
@@ -186,7 +186,7 @@ public class Client extends AbstractActor {
     }
 
     //Answer message
-    public static class response implements Serializable {
+    public static class Response implements Serializable {
         public final Pair<String, Integer> p; //Result object (value,version)
         public final int key; //Key of the object
 
@@ -195,7 +195,7 @@ public class Client extends AbstractActor {
         public final String op; //Type of the operation (write or read) // TODO change to enum
 
 
-        public response(Pair<String, Integer> pair, Boolean success, int key, String op) {
+        public Response(Pair<String, Integer> pair, Boolean success, int key, String op) {
             this.success = success;
             this.key = key;
             if (pair != null) {

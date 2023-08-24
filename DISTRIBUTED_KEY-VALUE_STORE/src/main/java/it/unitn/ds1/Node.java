@@ -3,7 +3,7 @@ package it.unitn.ds1;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
-import it.unitn.ds1.Client.response;
+import it.unitn.ds1.Client.Response;
 import scala.concurrent.duration.Duration;
 
 
@@ -286,7 +286,7 @@ public class Node extends AbstractActor {
                 waitC.get(msg.count).timeout = false;
                 waitC.get(msg.count).success = false;
 
-                waitC.get(msg.count).a.tell(new response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
+                waitC.get(msg.count).a.tell(new Response(max(waitC.get(msg.count).respo), true, msg.key, "read"), getSelf());
             }
 
             waitC.get(msg.count).count++;
@@ -332,7 +332,7 @@ public class Node extends AbstractActor {
                     System.out.println("maxV " + maxV + " count " + msg.count);
 
                 }
-                waitC.get(msg.count).a.tell(new response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
+                waitC.get(msg.count).a.tell(new Response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
                     r.tell(new Write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
                 }
@@ -359,7 +359,7 @@ public class Node extends AbstractActor {
     private void onTimeoutR(TimeoutR msg) {
         if (waitC.get(msg.count).timeout) {
             System.out.println("TIMEOOUTRRR");
-            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "read"), getSelf());
+            waitC.get(msg.count).a.tell(new Response(null, false, msg.key, "read"), getSelf());
             waitC.get(msg.count).success = false;
 
         }
@@ -371,7 +371,7 @@ public class Node extends AbstractActor {
      */
     private void onTimeoutW(TimeoutW msg) {
         if (waitC.get(msg.count).timeout) {
-            waitC.get(msg.count).a.tell(new response(null, false, msg.key, "write"), getSelf());
+            waitC.get(msg.count).a.tell(new Response(null, false, msg.key, "write"), getSelf());
             waitC.get(msg.count).success = false;
             for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
                 a.tell(new Unlock(msg.key), getSelf());
@@ -444,7 +444,7 @@ public class Node extends AbstractActor {
      *
      * @param msg
      */
-    private void onResponse(Client.response msg) {
+    private void onResponse(Client.Response msg) {
         to_be_updated.remove(msg.key);
 
         if (!msg.success || msg.op.equals("read")) {
@@ -550,7 +550,7 @@ public class Node extends AbstractActor {
                 .match(JoinResponse.class, this::onJoinResponse)
                 .match(DataRequest.class, this::onDataRequest)
                 .match(DataResponse.class, this::onDataResponse)
-                .match(Client.response.class, this::onResponse)
+                .match(Client.Response.class, this::onResponse)
                 .match(AnnounceNode.class, this::onAnnounceNode)
 
                 // leave messages
