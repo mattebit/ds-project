@@ -800,6 +800,7 @@ public class Node extends AbstractActor {
         }
     }
 
+    //Message to unlock nodes that were in write operation
     public static class Unlock implements Serializable {
         public final int key; //Key of object coordinator wants to unlock
 
