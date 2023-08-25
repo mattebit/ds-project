@@ -6,7 +6,6 @@ import akka.actor.Props;
 import it.unitn.ds1.Client.Response;
 import scala.concurrent.duration.Duration;
 
-
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +17,7 @@ public class Node extends AbstractActor {
 
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
     private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
+    private final Map<Integer, Integer> replication_indexes = new HashMap<>();
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
 
@@ -40,7 +40,7 @@ public class Node extends AbstractActor {
     }
 
     /**
-     * Given the key, find the node responsible for it (can also be used to find a neighbour)
+     * Given the key, find the node responsible for it
      *
      * @param key
      * @return
@@ -63,6 +63,20 @@ public class Node extends AbstractActor {
 
         return this.nodes.get(neighbour_id);
     }
+
+    public ActorRef get_neighbour() {
+        List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
+        ordered_id.sort(Comparator.naturalOrder());
+
+        for (Integer i : ordered_id) {
+            if (key < i) {
+                return nodes.get(i);
+            }
+        }
+        return nodes.get(0); // if there is no bigger node, you have to take the first one in the list (smaller)
+        // end of ring
+    }
+
     /**
      * Handling start message
      *
@@ -75,9 +89,10 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             this.nodes.put(key, value);
         }
-
-
+        // fill replication indexes
+        this.replication_indexes.putAll(msg.replication_index);
     }
+
     /**
      * Handling message for write operation from client
      *
@@ -141,6 +156,7 @@ public class Node extends AbstractActor {
 
 
     }
+
     /**
      * Handling message for read operation from client
      *
@@ -200,6 +216,7 @@ public class Node extends AbstractActor {
 
 
     }
+
     /**
      * Handle message from coordinator to read the version of a certain object for write operation
      *
@@ -227,6 +244,7 @@ public class Node extends AbstractActor {
             getSender().tell(new ResponseRFW(e.getValue(), msg.count, msg.key), getSelf());
         }
     }
+
     /**
      * Handle message from coordinator to read a certain object for read operation
      *
@@ -253,6 +271,7 @@ public class Node extends AbstractActor {
             getSender().tell(new ResponseRead(e, msg.count, msg.key), getSelf());
         }
     }
+
     /**
      * Find in list of objects the one with the maximum version
      *
@@ -273,6 +292,7 @@ public class Node extends AbstractActor {
         return pa;
 
     }
+
     /**
      * Handling the answer from nodes for read operation
      *
@@ -295,6 +315,7 @@ public class Node extends AbstractActor {
 
 
     }
+
     /**
      * Find in list of versions the one with maximum
      *
@@ -313,6 +334,7 @@ public class Node extends AbstractActor {
         return max;
 
     }
+
     /**
      * Handling the answer from nodes for write operation
      *
@@ -341,6 +363,7 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).count++;
         }
     }
+
     /**
      * Handling the write operation from coordinator
      *
@@ -351,6 +374,7 @@ public class Node extends AbstractActor {
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
     }
+
     /**
      * //Handling the timeout for read operation
      *
@@ -364,6 +388,7 @@ public class Node extends AbstractActor {
 
         }
     }
+
     /**
      * Handling the timeout for write operation
      *
@@ -387,6 +412,7 @@ public class Node extends AbstractActor {
      */
     private void onJoinNode(JoinNode msg) {
         msg.bootstrapper.tell(new JoinRequest(), getSelf());
+        this.replication_indexes.putAll(msg.replication_index);
     }
 
     /**
@@ -423,9 +449,10 @@ public class Node extends AbstractActor {
 
         // if there are no elements skip the read and announce itself
         if (msg.data.isEmpty()) {
-            for (ActorRef n : nodes.values()) {
-                n.tell(new AnnounceNode(this.key), self());
-            }
+            Map<Integer, Integer> tmp = new HashMap<>();
+            tmp.putAll(replication_indexes);
+            tmp.put(key, main.N - 2);
+            get_neighbour().tell(new AnnounceNode(this.key, tmp, self()), self());
             return;
         }
 
@@ -445,27 +472,49 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onResponse(Client.Response msg) {
-        to_be_updated.remove(msg.key);
-
         if (!msg.success || msg.op.equals("read")) {
             // TODO ?
-            return;
+        } else {
+            elements.put_if_newer(msg.key, msg.p);
         }
 
-        elements.put_if_newer(msg.key, msg.p);
+        to_be_updated.remove(msg.key);
 
         if (to_be_updated.isEmpty()) {
             // announce node to others
-            for (ActorRef n : nodes.values()) {
-                n.tell(new AnnounceNode(key), self());
-            }
+            Map<Integer, Integer> tmp = new HashMap<>();
+            tmp.putAll(replication_indexes);
+            tmp.put(key, main.N - 2);
+            get_neighbour().tell(new AnnounceNode(this.key, tmp, self()), self());
         }
     }
 
     private void onAnnounceNode(AnnounceNode msg) {
+        if (key == msg.key) {
+            return; // message returned at sender, announce done.
+        }
+
         // add new joined node
-        this.nodes.put(msg.key, sender());
+        this.nodes.put(msg.key, msg.new_node); // not sender
+
+        // Update the replication indexes:
+        for (Map.Entry<Integer, Integer> entry : msg.replication_indexes_update.entrySet()) {
+            if (!replication_indexes.containsKey(entry.getKey()) &&
+                    entry.getValue() >= 0) {
+                replication_indexes.put(entry.getKey(), entry.getValue());
+            } else if (replication_indexes.containsKey(entry.getKey())) {
+                if (entry.getValue() < 0) {
+                    replication_indexes.remove(entry.getKey());
+                } else {
+                    replication_indexes.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        // propagate message to next node
+        get_neighbour().tell(new AnnounceNode(msg.key, replication_indexes, msg.new_node), getSelf());
     }
+
     /**
      * Handling unlock of object from write operation because of the timeout
      *
@@ -474,6 +523,7 @@ public class Node extends AbstractActor {
     private void onunlock(Unlock msg) {
         busy.put(msg.key, true);
     }
+
     /**
      * Print objects maneged by the node
      *
@@ -504,6 +554,7 @@ public class Node extends AbstractActor {
         elements.update(msg.new_elements); // update the data of the old element (if present)
         nodes.remove(msg.key); // remove node that leaved
     }
+
     /**
      * Handling the crash message
      *
@@ -514,18 +565,21 @@ public class Node extends AbstractActor {
         nodes.remove(this.key);
         crash();
     }
+
     /**
      * Change to crash state
      */
     private void crash() {
         getContext().become(crashed());
     }
+
     /**
      * Handling the recovery message
      *
      * @param msg
      */
-    private void onRecoveryMsg(RecoveryMsg msg) {}
+    private void onRecoveryMsg(RecoveryMsg msg) {
+    }
 
     //Normal behaviour
     public Receive createReceive() {
@@ -562,6 +616,7 @@ public class Node extends AbstractActor {
 
                 .build();
     }
+
     //Crash behaviour
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
@@ -570,17 +625,21 @@ public class Node extends AbstractActor {
     }
 
     //Crash message
-    public static class Crashmsg implements Serializable { }
+    public static class Crashmsg implements Serializable {
+    }
 
     //Recovery message
-    public static class RecoveryMsg implements Serializable {}
+    public static class RecoveryMsg implements Serializable {
+    }
 
     //Start message
     public static class JoinGroupMsg implements Serializable {
         public final Map<Integer, ActorRef> group;   // a map of nodes
+        public final Map<Integer, Integer> replication_index;
 
-        public JoinGroupMsg(Map<Integer, ActorRef> group) {
+        public JoinGroupMsg(Map<Integer, ActorRef> group, Map<Integer, Integer> replication_index) {
             this.group = Collections.unmodifiableMap(new TreeMap<Integer, ActorRef>(group));
+            this.replication_index = Map.copyOf(replication_index);
         }
     }
 
@@ -727,9 +786,17 @@ public class Node extends AbstractActor {
      */
     public static class AnnounceNode implements Serializable {
         public final Integer key;
+        public final Map<Integer, Integer> replication_indexes_update = new HashMap<>();
+        public final ActorRef new_node;
 
-        public AnnounceNode(Integer key) {
+        public AnnounceNode(Integer key, Map<Integer, Integer> replication_indexes_update, ActorRef new_node) {
             this.key = key;
+            this.new_node = new_node;
+
+            // decrement the counter of each index
+            for (Map.Entry<Integer, Integer> entry : replication_indexes_update.entrySet()) {
+                this.replication_indexes_update.put(entry.getKey(), entry.getValue() - 1);
+            }
         }
     }
 
@@ -743,9 +810,11 @@ public class Node extends AbstractActor {
 
     public static class JoinNode implements Serializable {
         ActorRef bootstrapper;
+        Map<Integer, Integer> replication_index;
 
-        public JoinNode(ActorRef bootstrapper) {
+        public JoinNode(ActorRef bootstrapper, Map<Integer, Integer> replication_index) {
             this.bootstrapper = bootstrapper;
+            this.replication_index = replication_index;
         }
     }
 
@@ -778,7 +847,6 @@ public class Node extends AbstractActor {
             this.key = key;
         }
     }
-
 
 
     //Waiting request of a client

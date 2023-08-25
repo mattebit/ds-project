@@ -2,11 +2,11 @@ package it.unitn.ds1;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
+import it.unitn.ds1.Client.BlockTimer;
 import it.unitn.ds1.Client.JoinGroupMsgC;
+import it.unitn.ds1.Client.PrintAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
-import it.unitn.ds1.Client.BlockTimer;
-import it.unitn.ds1.Client.PrintAnswer;
 
 import java.io.IOException;
 import java.util.*;
@@ -35,12 +35,14 @@ public class main {
             groupc.add(system.actorOf(Client.props(i), "client" + i));
         }
 
-        // Join messages to the nodes to inform them about the map
-        JoinGroupMsg start = new JoinGroupMsg(mapgroupn);
+        Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N);
+
         // Join messages to the clients to inform them about the nodes
         JoinGroupMsgC start2 = new JoinGroupMsgC();
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
+            // Join messages to the nodes to inform them about the map
+            JoinGroupMsg start = new JoinGroupMsg(mapgroupn, repl_indexes.get(entry.getKey()));
             entry.getValue().tell(start, ActorRef.noSender());
         }
 
@@ -58,7 +60,8 @@ public class main {
         try {
             System.out.println(">>> Block read and write<<<");
             System.in.read();
-        }catch (IOException e) {}
+        } catch (IOException e) {
+        }
 
         BlockTimer block = new BlockTimer();
         for (ActorRef client : groupc) {
@@ -72,11 +75,9 @@ public class main {
                 System.out.println(">>> Press ENTER to print answer<<<");
                 System.in.read();
 
-                //ActorRef new_node = system.actorOf(Node.props(5), "node" + 5);
-                //new_node.tell(new Node.JoinNode(get_random_node()), ActorRef.noSender());
+                //create_new_node(25);
 
                 //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
-
 
                 PrintAnswer printa = new PrintAnswer();
 
@@ -91,18 +92,17 @@ public class main {
                 System.in.read();
                 done = true;
             }
-        } catch (IOException e) {}
+        } catch (IOException e) {
+        }
         done = false;
         try {
             while (!done) {
                 System.out.println(">>> Press ENTER to print Elements<<<");
                 System.in.read();
 
-                //ActorRef new_node = system.actorOf(Node.props(5), "node" + 5);
-                //new_node.tell(new Node.JoinNode(get_random_node()), ActorRef.noSender());
+                //TODO: list of change message to random nodes before add
 
-                //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
-
+                create_new_node(25);
 
                 PrintElem printa = new PrintElem();
 
@@ -140,18 +140,21 @@ public class main {
         return mapgroupn.get(res);
     }
 
-    public void create_new_node(Integer id) {
+    public static void create_new_node(Integer id) {
         if (mapgroupn.containsKey(id)) {
             throw new RuntimeException("a node with id " + " is already present");
         }
 
         // create new node
         ActorRef a = system.actorOf(Node.props(id), "node" + id);
-
+        mapgroupn.put(id, a);
         // choose a random bootstrapper node
         ActorRef bootstrapper = get_random_node();
 
+        // get updated replication indexes for new node
+        Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N); // recalculate repl indexes for new node
+
         // tell the new node about the bootstrapper
-        a.tell(new Node.JoinNode(bootstrapper), ActorRef.noSender());
+        a.tell(new Node.JoinNode(bootstrapper, repl_indexes.get(id)), ActorRef.noSender());
     }
 }

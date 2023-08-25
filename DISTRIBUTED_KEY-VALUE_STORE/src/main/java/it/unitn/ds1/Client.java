@@ -8,13 +8,12 @@ import it.unitn.ds1.Node.Retrive;
 import scala.concurrent.duration.Duration;
 
 import java.io.Serializable;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-
-import java.sql.Timestamp;
-import java.util.Date;
 
 //Clients of the system
 public class Client extends AbstractActor {
@@ -25,6 +24,8 @@ public class Client extends AbstractActor {
     int id; //Id of the client
 
     Date date = new Date();
+    Cancellable timer1; //Read timer
+    Cancellable timer2; //Write timer
 
     public Client(int id) {
         this.id = id;
@@ -34,10 +35,6 @@ public class Client extends AbstractActor {
     static public Props props(int id) {
         return Props.create(Client.class, () -> new Client(id));
     }
-
-    Cancellable timer1; //Read timer
-
-    Cancellable timer2; //Write timer
 
     /**
      * Method to block the timers
@@ -58,9 +55,6 @@ public class Client extends AbstractActor {
         /*for (ActorRef b: msg.group) {
             this.peers.add(b);
         }*/
-
-
-
 
         //Start of the occurrences of write
         timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
@@ -102,9 +96,8 @@ public class Client extends AbstractActor {
         }*/
 
 
-
-
     }
+
     /**
      * Read method
      *
@@ -123,6 +116,7 @@ public class Client extends AbstractActor {
         main.get_random_node().tell(new Retrive(key), getSelf());
 
     }
+
     /**
      * Write method
      *
@@ -141,6 +135,7 @@ public class Client extends AbstractActor {
         main.get_random_node().tell(new Change(key, val), getSelf());
 
     }
+
     /**
      * Method to handle the answer from nodes
      *
@@ -149,6 +144,7 @@ public class Client extends AbstractActor {
     private void onresponse(Response msg) {
         responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
+
     /**
      * Method to handle the print of answers to the client
      *
@@ -160,7 +156,7 @@ public class Client extends AbstractActor {
                 System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
             }
             if (r != null && !r.success) {
-                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t );
+                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
             }
         }
     }

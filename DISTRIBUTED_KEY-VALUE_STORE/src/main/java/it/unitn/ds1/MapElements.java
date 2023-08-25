@@ -51,7 +51,7 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
 
         // select keys
         for (Map.Entry<Integer, Pair<String, Integer>> el : this.entrySet()) {
-            if (el.getKey() <= key) {
+            if (el.getKey() <= key) { //TODO check before node
                 selected.put(el.getKey(), el.getValue());
             }
         }
