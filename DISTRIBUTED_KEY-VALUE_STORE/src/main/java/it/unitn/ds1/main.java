@@ -1,4 +1,5 @@
 package it.unitn.ds1;
+
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.BlockTimer;
@@ -6,8 +7,10 @@ import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Client.PrintAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
+
 import java.io.IOException;
 import java.util.*;
+
 public class main {
     final static int RANGE = 50; //Range of key in DKVS
     final static int N = 4; //Number of replicas
@@ -17,6 +20,7 @@ public class main {
     static int N_NODES = 5; //Number of the initial nodes
     static int N_CLIENTS = 5; //Number of the initial clients
     static Map<Integer, ActorRef> mapgroupn;
+
     public static void main(String[] args) {
         mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and t33heir key
         for (int i = 0; i < N_NODES * 10; i = i + 10) {
@@ -60,7 +64,7 @@ public class main {
                 System.out.println(">>> Press ENTER to print answer<<<");
                 System.in.read();
                 //create_new_node(25);
-                //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
                 PrintAnswer printa = new PrintAnswer();
                 for (ActorRef n : groupc) {
                     n.tell(printa, ActorRef.noSender());
@@ -79,7 +83,7 @@ public class main {
                 System.out.println(">>> Press ENTER to print Elements<<<");
                 System.in.read();
                 //TODO: list of change message to random nodes before add
-                create_new_node(25);
+                //create_new_node(25);
                 PrintElem printa = new PrintElem();
                 for (ActorRef n : mapgroupn.values()) {
                     n.tell(printa, ActorRef.noSender());
@@ -95,6 +99,7 @@ public class main {
             system.terminate();
         }
     }
+
     public static ActorRef get_random_node() {
         Random r = new Random();
         Set<Integer> s = mapgroupn.keySet();
@@ -109,6 +114,7 @@ public class main {
         }
         return mapgroupn.get(res);
     }
+
     public static void create_new_node(Integer id) {
         if (mapgroupn.containsKey(id)) {
             throw new RuntimeException("a node with id " + " is already present");

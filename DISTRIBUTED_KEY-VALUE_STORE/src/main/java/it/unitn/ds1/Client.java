@@ -1,10 +1,12 @@
 package it.unitn.ds1;
+
 import akka.actor.AbstractActor;
 import akka.actor.Cancellable;
 import akka.actor.Props;
 import it.unitn.ds1.Node.Change;
 import it.unitn.ds1.Node.Retrive;
 import scala.concurrent.duration.Duration;
+
 import java.io.Serializable;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+
 //Clients of the system
 public class Client extends AbstractActor {
     //private List<ActorRef> peers = new ArrayList<>();
@@ -21,12 +24,15 @@ public class Client extends AbstractActor {
     Date date = new Date();
     Cancellable timer1; //Read timer
     Cancellable timer2; //Write timer
+
     public Client(int id) {
         this.id = id;
     }
+
     static public Props props(int id) {
         return Props.create(Client.class, () -> new Client(id));
     }
+
     /**
      * Method to block the timers
      *
@@ -36,6 +42,7 @@ public class Client extends AbstractActor {
         timer1.cancel();
         timer2.cancel();
     }
+
     /**
      * Method that starts the operation bt the client
      *
@@ -80,6 +87,7 @@ public class Client extends AbstractActor {
             );
         }*/
     }
+
     /**
      * Read method
      *
@@ -96,6 +104,7 @@ public class Client extends AbstractActor {
         }
         main.get_random_node().tell(new Retrive(key), getSelf());
     }
+
     /**
      * Write method
      *
@@ -112,6 +121,7 @@ public class Client extends AbstractActor {
         }
         main.get_random_node().tell(new Change(key, val), getSelf());
     }
+
     /**
      * Method to handle the answer from nodes
      *
@@ -120,6 +130,7 @@ public class Client extends AbstractActor {
     private void onresponse(Response msg) {
         responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
     }
+
     /**
      * Method to handle the print of answers to the client
      *
@@ -135,6 +146,7 @@ public class Client extends AbstractActor {
             }
         }
     }
+
     public Receive createReceive() {
         return receiveBuilder()
                 .match(JoinGroupMsgC.class, this::onJoinGroupMsgC)
@@ -145,18 +157,22 @@ public class Client extends AbstractActor {
                 .match(BlockTimer.class, this::onBlockTimer)
                 .build();
     }
+
     //Start message
     public static class JoinGroupMsgC implements Serializable {
     }
+
     //Message to block the timers
     public static class BlockTimer implements Serializable {
     }
+
     //Answer message
     public static class Response implements Serializable {
         public final Pair<String, Integer> p; //Result object (value,version)
         public final int key; //Key of the object
         public final Boolean success; //Outcome of the operation
         public final String op; //Type of the operation (write or read) // TODO change to enum
+
         public Response(Pair<String, Integer> pair, Boolean success, int key, String op) {
             this.success = success;
             this.key = key;
@@ -170,15 +186,19 @@ public class Client extends AbstractActor {
             this.op = op;
         }
     }
+
     //Read message
     public static class Get implements Serializable {
     }
+
     //Write message
     public static class Update implements Serializable {
     }
+
     //Print message
     public static class PrintAnswer implements Serializable {
     }
+
     //Class of the answers from nodes
     public class Result {
         Pair<String, Integer> p; //Object value and version
@@ -187,6 +207,7 @@ public class Client extends AbstractActor {
         String op; //Write or read
         //int count; //operatuo
         Timestamp t; //Time when the answer arrive to the client
+
         Result(Pair<String, Integer> p, int key, boolean success, String op, Timestamp t) {
             this.key = key;
             this.success = success;

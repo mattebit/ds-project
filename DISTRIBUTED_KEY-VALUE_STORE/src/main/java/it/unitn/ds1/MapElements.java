@@ -1,6 +1,8 @@
 package it.unitn.ds1;
+
 import java.util.HashMap;
 import java.util.Map;
+
 public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
     /**
      * Update the elements in this map without removing them if not present in new map
@@ -24,6 +26,7 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
             }
         }
     }
+
     /**
      * Update this map to match the new map, also remove elements not present in new map
      *
@@ -33,17 +36,20 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
         this.update(new_map); // update present values
         this.entrySet().removeIf(entry -> !new_map.containsKey(entry.getKey())); // remove elements not present
     }
+
     /**
      * Get all the elements in this map that are smaller than the given key, also removes them from this map.
+     * (key_start, key_end]
      *
-     * @param key
+     * @param key_end
      * @return
      */
-    public MapElements get_remove_less_than_key(Integer key) {
+    public MapElements get_and_remove_range(Integer key_start, Integer key_end) {
         MapElements selected = new MapElements();
         // select keys
         for (Map.Entry<Integer, Pair<String, Integer>> el : this.entrySet()) {
-            if (el.getKey() <= key) { //TODO check before node
+            if (el.getKey() <= key_end &&
+                    el.getKey() > key_start) { //TODO check before node
                 selected.put(el.getKey(), el.getValue());
             }
         }
@@ -53,6 +59,26 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
         }
         return selected;
     }
+
+    /**
+     * Get all the elements in this map that are smaller than the given key, also removes them from this map.
+     * (key_start, key_end]
+     *
+     * @param key_end
+     * @return
+     */
+    public MapElements get_range(Integer key_start, Integer key_end) {
+        MapElements selected = new MapElements();
+        // select keys
+        for (Map.Entry<Integer, Pair<String, Integer>> el : this.entrySet()) {
+            if (el.getKey() <= key_end &&
+                    el.getKey() > key_start) { //TODO check before node
+                selected.put(el.getKey(), el.getValue());
+            }
+        }
+        return selected;
+    }
+
     /**
      * Given a key and an element, put it in the Map if newer (if not present it will not be added)
      *

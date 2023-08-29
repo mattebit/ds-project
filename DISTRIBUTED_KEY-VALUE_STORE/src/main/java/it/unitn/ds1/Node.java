@@ -1,12 +1,15 @@
 package it.unitn.ds1;
+
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.Response;
 import scala.concurrent.duration.Duration;
+
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+
 public class Node extends AbstractActor {
     private final Map<Integer, ActorRef> nodes = new TreeMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
     private final MapElements elements = new MapElements();  //Object mantained by the node
@@ -16,19 +19,25 @@ public class Node extends AbstractActor {
     private final Map<Integer, Integer> replication_indexes = new HashMap<>();
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
+    private int last_update_replication_indexes_hash = 0;
+
     public Node(int id) {
         this.key = id;
         this.count = 0;
     }
+
     static public Props props(int id) {
         return Props.create(Node.class, () -> new Node(id));
     }
+
     public void update_remove_nodes(Map<Integer, ActorRef> new_rout) {
         Utils.update_remove(nodes, new_rout);
     }
+
     public void update_nodes(Map<Integer, ActorRef> new_rout) {
         Utils.update_remove(nodes, new_rout);
     }
+
     /**
      * Given the key, find the node responsible for it
      *
@@ -49,6 +58,7 @@ public class Node extends AbstractActor {
             neighbour_id = ordered_id.get(0);
         return this.nodes.get(neighbour_id);
     }
+
     public ActorRef get_neighbour() {
         List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
         ordered_id.sort(Comparator.naturalOrder());
@@ -60,6 +70,87 @@ public class Node extends AbstractActor {
         return nodes.get(0); // if there is no bigger node, you have to take the first one in the list (smaller)
         // end of ring
     }
+
+    /**
+     * Function that checks that the data stored in the node is updated w.r.t. the replication indexes.
+     * Otherwise it asks to the responsible node the data to replicate.
+     */
+    public void update_replication() {
+        if (last_update_replication_indexes_hash != 0 &&
+                last_update_replication_indexes_hash == replication_indexes.hashCode()) {
+            // if replciation indexes didn't change since last update, then do nothing
+            return;
+        }
+
+        // remove all replicated data for simplicity
+        remove_replicated_data();
+
+        // Request new replicated data to responsible node. For each replication index ask data to node
+        for (int index : replication_indexes.keySet()) {
+            get_responsible_node(index).tell(new ReplicationRequest(), getSelf());
+        }
+
+        last_update_replication_indexes_hash = replication_indexes.hashCode();
+    }
+
+    /**
+     * Removes all the replicated data from the element map
+     */
+    public void remove_replicated_data() {
+        MapElements responsibleElements = get_responsible_elements();
+
+        elements.clear();
+        elements.putAll(responsibleElements);
+    }
+
+    private void onReplicationResponse(ReplicationResponse msg) {
+        elements.update(msg.new_elements);
+    }
+
+    private void onReplicationRequest(ReplicationRequest msg) {
+        // send this node's elements (no replicated data)
+        sender().tell(new ReplicationResponse(get_responsible_elements()), getSelf());
+    }
+
+    /**
+     * Get the elements this node is responsible for, excluded replication elements
+     *
+     * @return
+     */
+    public MapElements get_responsible_elements() {
+        return elements.get_range(get_preceding_id(), key);
+    }
+
+    /**
+     * Returns the preceding node in the ring
+     */
+    public ActorRef get_preceding() {
+        List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
+        ordered_id.sort(Comparator.reverseOrder());
+        for (Integer i : ordered_id) {
+            if (key > i) {
+                return nodes.get(i);
+            }
+        }
+        return nodes.get(nodes.size() - 1); // if there is no smaller node, you have to take the last one in the list
+        // end of ring
+    }
+
+    /**
+     * Returns the preceding node in the ring, returning its id
+     */
+    public int get_preceding_id() {
+        List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
+        ordered_id.sort(Comparator.reverseOrder());
+        for (Integer i : ordered_id) {
+            if (key > i) {
+                return i;
+            }
+        }
+        return nodes.size() - 1; // if there is no smaller node, you have to take the last one in the list
+        // end of ring
+    }
+
     /**
      * Handling start message
      *
@@ -75,6 +166,7 @@ public class Node extends AbstractActor {
         // fill replication indexes
         this.replication_indexes.putAll(msg.replication_index);
     }
+
     /**
      * Handling message for write operation from client
      *
@@ -130,6 +222,7 @@ public class Node extends AbstractActor {
                 getContext().system().dispatcher(), getSelf()
         );
     }
+
     /**
      * Handling message for read operation from client
      *
@@ -181,6 +274,7 @@ public class Node extends AbstractActor {
                 getContext().system().dispatcher(), getSelf()
         );
     }
+
     /**
      * Handle message from coordinator to read the version of a certain object for write operation
      *
@@ -206,6 +300,7 @@ public class Node extends AbstractActor {
             getSender().tell(new ResponseRFW(e.getValue(), msg.count, msg.key), getSelf());
         }
     }
+
     /**
      * Handle message from coordinator to read a certain object for read operation
      *
@@ -230,6 +325,7 @@ public class Node extends AbstractActor {
             getSender().tell(new ResponseRead(e, msg.count, msg.key), getSelf());
         }
     }
+
     /**
      * Find in list of objects the one with the maximum version
      *
@@ -248,6 +344,7 @@ public class Node extends AbstractActor {
         }
         return pa;
     }
+
     /**
      * Handling the answer from nodes for read operation
      *
@@ -265,6 +362,7 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).count++;
         }
     }
+
     /**
      * Find in list of versions the one with maximum
      *
@@ -280,6 +378,7 @@ public class Node extends AbstractActor {
         }
         return max;
     }
+
     /**
      * Handling the answer from nodes for write operation
      *
@@ -305,6 +404,7 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).count++;
         }
     }
+
     /**
      * Handling the write operation from coordinator
      *
@@ -314,6 +414,7 @@ public class Node extends AbstractActor {
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
         this.busy.put(msg.key, false);
     }
+
     /**
      * //Handling the timeout for read operation
      *
@@ -326,6 +427,7 @@ public class Node extends AbstractActor {
             waitC.get(msg.count).success = false;
         }
     }
+
     /**
      * Handling the timeout for write operation
      *
@@ -340,6 +442,7 @@ public class Node extends AbstractActor {
             }
         }
     }
+
     /**
      * Msg sent by the main, to tell to a node which is his bootsrapper
      *
@@ -349,6 +452,7 @@ public class Node extends AbstractActor {
         msg.bootstrapper.tell(new JoinRequest(), getSelf());
         this.replication_indexes.putAll(msg.replication_index);
     }
+
     /**
      * When a join request is received, this means that this node is now a bootstrapper for a new node
      *
@@ -357,6 +461,7 @@ public class Node extends AbstractActor {
     private void onJoinRequest(JoinRequest msg) {
         sender().tell(new JoinResponse(this.nodes), getSelf());
     }
+
     /**
      * Processing the Join Response sent by the bootstrapper. It finds the nearest neighbour, asking to him the
      * keys this node is responsible for
@@ -369,10 +474,19 @@ public class Node extends AbstractActor {
         // ask data to neighbour
         neighbour.tell(new DataRequest(key), self());
     }
+
     private void onDataRequest(DataRequest msg) {
-        MapElements selected = elements.get_remove_less_than_key(msg.id);
+        // get preceding works because the new node is not present yet
+        MapElements selected = elements.get_range(get_preceding_id(), msg.id);
         sender().tell(new DataResponse(selected), getSelf());
     }
+
+    /**
+     * Called when a data response message is received. It updates the joining node with the new elements of which he is
+     * responsible. Then, for each element, he does a read, to take the updated values if any.
+     *
+     * @param msg
+     */
     private void onDataResponse(DataResponse msg) {
         elements.update_remove(msg.data);
         // if there are no elements skip the read and announce itself
@@ -391,6 +505,7 @@ public class Node extends AbstractActor {
         //add to a temporary list
         to_be_updated.addAll(msg.data.keySet());
     }
+
     /**
      * This handles responses received from a read request done after a node joins the circle and reads all the elements
      *
@@ -403,7 +518,7 @@ public class Node extends AbstractActor {
             elements.put_if_newer(msg.key, msg.p);
         }
         to_be_updated.remove(msg.key);
-        if (to_be_updated.isEmpty()) {
+        if (to_be_updated.isEmpty()) { // if all elements to be updated have been updated, then announce
             // announce node to others
             Map<Integer, Integer> tmp = new HashMap<>();
             tmp.putAll(replication_indexes);
@@ -411,6 +526,7 @@ public class Node extends AbstractActor {
             get_neighbour().tell(new AnnounceNode(this.key, tmp, self()), self());
         }
     }
+
     private void onAnnounceNode(AnnounceNode msg) {
         if (key == msg.key) {
             return; // message returned at sender, announce done.
@@ -418,7 +534,87 @@ public class Node extends AbstractActor {
         // add new joined node
         this.nodes.put(msg.key, msg.new_node); // not sender
         // Update the replication indexes:
-        for (Map.Entry<Integer, Integer> entry : msg.replication_indexes_update.entrySet()) {
+        update_replication_indexes(msg.replication_indexes_update);
+        update_replication(); // updates values
+        // propagate message to next node
+        get_neighbour().tell(new AnnounceNode(msg.key, replication_indexes, msg.new_node), getSelf());
+    }
+
+    /**
+     * Handling unlock of object from write operation because of the timeout
+     *
+     * @param msg
+     */
+    private void onunlock(Unlock msg) {
+        busy.put(msg.key, true);
+    }
+
+    /**
+     * Print objects maneged by the node
+     *
+     * @param msg
+     */
+    private void onprintElem(PrintElem msg) {
+        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
+            System.out.println("idN " + this.key + " idE " + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+        }
+    }
+
+    private void onLeaveRequest(LeaveRequest msg) {
+        // announce to neighbour node that this is leaving
+        // add the data items they are now responsible for
+
+        Map<Integer, Integer> tmp = new HashMap<>();
+
+        for (Map.Entry<Integer, Integer> entry : replication_indexes.entrySet()) {
+            tmp.put(entry.getKey(), entry.getValue() + 1); // incremented by one for simplicity
+        }
+
+        this.get_neighbour().tell(
+                new NodeLeavingInfo(
+                        elements.get_range(get_preceding_id(), this.key),
+                        this.key, tmp),
+                getSelf()
+        );
+        /*
+        for (Integer k : nodes.keySet()) {
+            nodes.get(k).tell(
+                    new NodeLeavingInfo(
+                            elements.get_remove_less_than_key(this.key),
+                            this.key
+                    ),
+                    self()
+            );
+        }*/
+    }
+
+    private void onNodeLeavingInfo(NodeLeavingInfo msg) {
+        if (msg.key == key)
+            // msg returned to leaving node
+            return;
+
+        ActorRef neighb = get_neighbour(); // get neighbour before removing the leaving node
+
+        nodes.remove(msg.key); // remove node that leaved
+
+        if (msg.new_elements != null) {
+            elements.update(msg.new_elements); // update the data of the old element (if present)
+        }
+
+        replication_indexes.remove(msg.key); // remove leaving node if present in repl. indexes
+        update_replication_indexes(msg.replication_index); // update this node's replication indexes with the updates
+        // received from the message
+
+        update_replication(); // update replicated data
+
+        neighb.tell(
+                new NodeLeavingInfo(null, msg.key, this.replication_indexes),
+                getSelf()
+        );
+    }
+
+    private void update_replication_indexes(Map<Integer, Integer> replication_index_update) {
+        for (Map.Entry<Integer, Integer> entry : replication_index_update.entrySet()) {
             if (!replication_indexes.containsKey(entry.getKey()) &&
                     entry.getValue() >= 0) {
                 replication_indexes.put(entry.getKey(), entry.getValue());
@@ -430,44 +626,8 @@ public class Node extends AbstractActor {
                 }
             }
         }
-        // propagate message to next node
-        get_neighbour().tell(new AnnounceNode(msg.key, replication_indexes, msg.new_node), getSelf());
     }
-    /**
-     * Handling unlock of object from write operation because of the timeout
-     *
-     * @param msg
-     */
-    private void onunlock(Unlock msg) {
-        busy.put(msg.key, true);
-    }
-    /**
-     * Print objects maneged by the node
-     *
-     * @param msg
-     */
-    private void onprintElem(PrintElem msg) {
-        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
-            System.out.println("idN " + this.key + " idE " + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
-        }
-    }
-    private void onLeaveRequest(LeaveRequest msg) {
-        // announce to every node that this is leaving
-        // add the data items they are now responsible for
-        for (Integer k : nodes.keySet()) {
-            nodes.get(k).tell(
-                    new NodeLeavingInfo(
-                            elements.get_remove_less_than_key(this.key),
-                            this.key
-                    ),
-                    self()
-            );
-        }
-    }
-    private void onNodeLeavingInfo(NodeLeavingInfo msg) {
-        elements.update(msg.new_elements); // update the data of the old element (if present)
-        nodes.remove(msg.key); // remove node that leaved
-    }
+
     /**
      * Handling the crash message
      *
@@ -477,12 +637,14 @@ public class Node extends AbstractActor {
         nodes.remove(this.key);
         crash();
     }
+
     /**
      * Change to crash state
      */
     private void crash() {
         getContext().become(crashed());
     }
+
     /**
      * Handling the recovery message
      *
@@ -490,6 +652,7 @@ public class Node extends AbstractActor {
      */
     private void onRecoveryMsg(RecoveryMsg msg) {
     }
+
     //Normal behaviour
     public Receive createReceive() {
         return receiveBuilder()
@@ -517,88 +680,122 @@ public class Node extends AbstractActor {
                 // leave messages
                 .match(LeaveRequest.class, this::onLeaveRequest)
                 .match(NodeLeavingInfo.class, this::onNodeLeavingInfo)
+                // replication
+                .match(ReplicationResponse.class, this::onReplicationResponse)
+                .match(ReplicationRequest.class, this::onReplicationRequest)
                 //Crash message
                 .match(Crashmsg.class, this::oncrash)
                 .build();
     }
+
     //Crash behaviour
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
                 .match(RecoveryMsg.class, this::onRecoveryMsg)
                 .build();
     }
+
+    public static class ReplicationResponse implements Serializable {
+        MapElements new_elements;
+
+        public ReplicationResponse(MapElements new_elements) {
+            this.new_elements = new_elements;
+        }
+    }
+
+    public static class ReplicationRequest implements Serializable {
+
+    }
+
     //Crash message
     public static class Crashmsg implements Serializable {
     }
+
     //Recovery message
     public static class RecoveryMsg implements Serializable {
     }
+
     //Start message
     public static class JoinGroupMsg implements Serializable {
         public final Map<Integer, ActorRef> group;   // a map of nodes
         public final Map<Integer, Integer> replication_index;
+
         public JoinGroupMsg(Map<Integer, ActorRef> group, Map<Integer, Integer> replication_index) {
             this.group = Collections.unmodifiableMap(new TreeMap<Integer, ActorRef>(group));
             this.replication_index = Map.copyOf(replication_index);
         }
     }
+
     //Read message from Client
     public static class Retrive implements Serializable {
         public final int key;   //Key of object Client wants to read
+
         public Retrive(int key) {
             this.key = key;
         }
     }
+
     //Write message from Client
     public static class Change implements Serializable {
         public final int key; //Key of object client wants to insert
         public final String value; //Value of object client wants to insert
+
         public Change(int key, String val) {
             this.key = key;
             this.value = val;
         }
     }
+
     //Read message from coordinator to specific nodes
     public static class Read implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
+
         public Read(int key, int count) {
             this.key = key;
             this.count = count;
         }
     }
+
     //Read message from coordinator for write operation purpose
     public static class Readforwrite implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
+
         public Readforwrite(int key, int count) {
             this.key = key;
             this.count = count;
         }
     }
+
     //Timeout message (in read operation)
     public static class TimeoutR implements Serializable {
         public final int count; //Key of waiting request associated with the timeout
         public final int key; //Key of object associated with the request
+
         public TimeoutR(int count, int key) {
             this.count = count;
             this.key = key;
         }
     }
+
     //Timeout message (in write operation)
     public static class TimeoutW implements Serializable {
         public final int count; //Key of waiting request associated with the timeout
         public final int key; //Key of object associated with the request
+
         public TimeoutW(int count, int key) {
             this.count = count;
             this.key = key;
         }
     }
+
     //Answer from nodes to the coordinator in read operation
     public static class ResponseRead implements Serializable {
         public final Pair<String, Integer> e; //Object (value and version) requested
         public final int count; //Key of waiting request associated with the read operation
         public final int key; //Key of object associated with the read operation
+
         public ResponseRead(Pair<String, Integer> pair, int count, int key) {
             String ind = pair.getKey();
             Integer value = pair.getValue();
@@ -607,40 +804,49 @@ public class Node extends AbstractActor {
             this.key = key;
         }
     }
+
     //Answer from nodes to the coordinator in write operation
     public static class ResponseRFW implements Serializable {
         public final int count; //Key of waiting request associated with the write operation
         public final int key; //Key of object associated with the write operation
         public final int ver; //Version of object associated with the write operation
+
         public ResponseRFW(Integer ver, int count, int key) {
             this.ver = ver;
             this.count = count;
             this.key = key;
         }
     }
+
     //Write message from coordinator to specific nodes
     public static class Write implements Serializable {
         public final String value; //Value of object coordinator wants to insert
         public final int key; //Key of object coordinator wants to insert
         public final int ver; //Value of object coordinator wants to insert
+
         public Write(Integer ver, String value, int key) {
             this.ver = ver;
             this.value = value;
             this.key = key;
         }
     }
+
     public static class DataRequest implements Serializable {
         public final Integer id;
+
         public DataRequest(Integer id) {
             this.id = id;
         }
     }
+
     public static class DataResponse implements Serializable {
         public final MapElements data;
+
         public DataResponse(MapElements data) {
             this.data = data;
         }
     }
+
     /**
      * Message sent by a new node when it joined the network
      */
@@ -648,6 +854,7 @@ public class Node extends AbstractActor {
         public final Integer key;
         public final Map<Integer, Integer> replication_indexes_update = new HashMap<>();
         public final ActorRef new_node;
+
         public AnnounceNode(Integer key, Map<Integer, Integer> replication_indexes_update, ActorRef new_node) {
             this.key = key;
             this.new_node = new_node;
@@ -658,44 +865,60 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Message to unlock nodes that were in write operation
     public static class Unlock implements Serializable {
         public final int key; //Key of object coordinator wants to unlock
+
         public Unlock(int key) {
             this.key = key;
         }
     }
+
     public static class JoinNode implements Serializable {
         ActorRef bootstrapper;
         Map<Integer, Integer> replication_index;
+
         public JoinNode(ActorRef bootstrapper, Map<Integer, Integer> replication_index) {
             this.bootstrapper = bootstrapper;
             this.replication_index = replication_index;
         }
     }
+
     //Start message
     public static class JoinRequest implements Serializable {
         public JoinRequest() {
         }
     }
+
     public static class JoinResponse implements Serializable {
         Map<Integer, ActorRef> nodes;
+
         public JoinResponse(Map<Integer, ActorRef> nodes) {
             this.nodes = nodes;
         }
     }
+
     public static class PrintElem implements Serializable {
     }
+
     public static class LeaveRequest implements Serializable {
     }
+
     public static class NodeLeavingInfo implements Serializable {
         MapElements new_elements;
         Integer key;
-        public NodeLeavingInfo(MapElements new_elements, Integer key) {
+        Map<Integer, Integer> replication_index = new HashMap<>();
+
+        public NodeLeavingInfo(MapElements new_elements, Integer key, Map<Integer, Integer> replication_index) {
             this.new_elements = new_elements;
             this.key = key;
+
+            for (Map.Entry<Integer, Integer> element : replication_index.entrySet()) {
+                // decrement indexes
+                this.replication_index.put(element.getKey(), element.getValue() - 1);
+            }
         }
     }
+
     //Waiting request of a client
     public class Req {
         int count; //number of response to this request
@@ -707,6 +930,7 @@ public class Node extends AbstractActor {
         List<Pair<String, Integer>> respo; //List of object received in the request's answers (read operation case)
         List<ActorRef> repl; //List of replica nodes where this request is sent (write operation case)
         List<Integer> version; //List of object's version in request's answers (write operation case)
+
         public Req(ActorRef a, int key) {
             this.key = key;
             this.count = 0;
