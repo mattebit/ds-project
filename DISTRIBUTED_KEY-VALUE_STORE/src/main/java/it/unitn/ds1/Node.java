@@ -94,7 +94,7 @@ public class Node extends AbstractActor {
     }
 
     /**
-     * Removes all the replicated data from the element map
+     * Removes all the replicated data from the element map, keeping only the data the node is responsible for
      */
     public void remove_replicated_data() {
         MapElements responsibleElements = get_responsible_elements();
@@ -137,6 +137,50 @@ public class Node extends AbstractActor {
     }
 
     /**
+     * Get the preceding node id
+     *
+     * @param id the id of the preceding node
+     * @return the id of the preceding node
+     */
+    public int get_preceding_id(int id) {
+        List<Integer> ordered_id = new ArrayList<>(nodes.keySet());
+        ordered_id.sort(Comparator.reverseOrder());
+        for (Integer i : ordered_id) {
+            if (id > i) {
+                return i;
+            }
+        }
+        return ordered_id.get(0); // if there is no smaller node, you have to take the last one in the list
+        // end of ring
+    }
+
+    /**
+     * Get x preceding nodes
+     *
+     * @param count the number of preceding nodes to take
+     * @return the list of preceding nodes
+     */
+    public List<Integer> get_precedings_id(int count) {
+        if (count > main.N) {
+            throw new RuntimeException("invalid input, bigger than N");
+        }
+
+        List<Integer> res = new ArrayList<>();
+
+        Integer prec_id = get_preceding_id();
+        res.add(prec_id);
+
+        int c = count - 1;
+        while (c != 0) {
+            prec_id = get_preceding_id(prec_id);
+            res.add(prec_id);
+            c--;
+        }
+
+        return res;
+    }
+
+    /**
      * Returns the preceding node in the ring, returning its id
      */
     public int get_preceding_id() {
@@ -147,7 +191,7 @@ public class Node extends AbstractActor {
                 return i;
             }
         }
-        return nodes.size() - 1; // if there is no smaller node, you have to take the last one in the list
+        return ordered_id.get(0); // if there is no smaller node, you have to take the last one in the list
         // end of ring
     }
 
@@ -494,7 +538,10 @@ public class Node extends AbstractActor {
             Map<Integer, Integer> tmp = new HashMap<>();
             tmp.putAll(replication_indexes);
             tmp.put(key, main.N - 2);
-            get_neighbour().tell(new AnnounceNode(this.key, tmp, self()), self());
+            // announce to all nodes
+            for (ActorRef n : nodes.values()) {
+                n.tell(new AnnounceNode(this.key, tmp, self()), self());
+            }
             return;
         }
         // check the data with a read
@@ -523,7 +570,10 @@ public class Node extends AbstractActor {
             Map<Integer, Integer> tmp = new HashMap<>();
             tmp.putAll(replication_indexes);
             tmp.put(key, main.N - 2);
-            get_neighbour().tell(new AnnounceNode(this.key, tmp, self()), self());
+            // Announce node to all the others
+            for (ActorRef n : nodes.values()) {
+                n.tell(new AnnounceNode(this.key, tmp, self()), self());
+            }
         }
     }
 
@@ -534,10 +584,8 @@ public class Node extends AbstractActor {
         // add new joined node
         this.nodes.put(msg.key, msg.new_node); // not sender
         // Update the replication indexes:
-        update_replication_indexes(msg.replication_indexes_update);
+        update_replication_indexes();
         update_replication(); // updates values
-        // propagate message to next node
-        get_neighbour().tell(new AnnounceNode(msg.key, replication_indexes, msg.new_node), getSelf());
     }
 
     /**
@@ -561,31 +609,16 @@ public class Node extends AbstractActor {
     }
 
     private void onLeaveRequest(LeaveRequest msg) {
-        // announce to neighbour node that this is leaving
-        // add the data items they are now responsible for
+        // announce to all nodes that the node is leaving
 
-        Map<Integer, Integer> tmp = new HashMap<>();
-
-        for (Map.Entry<Integer, Integer> entry : replication_indexes.entrySet()) {
-            tmp.put(entry.getKey(), entry.getValue() + 1); // incremented by one for simplicity
-        }
-
-        this.get_neighbour().tell(
-                new NodeLeavingInfo(
-                        elements.get_range(get_preceding_id(), this.key),
-                        this.key, tmp),
-                getSelf()
-        );
-        /*
-        for (Integer k : nodes.keySet()) {
-            nodes.get(k).tell(
+        for (ActorRef node : nodes.values()) {
+            node.tell(
                     new NodeLeavingInfo(
-                            elements.get_remove_less_than_key(this.key),
-                            this.key
-                    ),
-                    self()
+                            elements.get_range(get_preceding_id(), this.key),
+                            this.key),
+                    getSelf()
             );
-        }*/
+        }
     }
 
     private void onNodeLeavingInfo(NodeLeavingInfo msg) {
@@ -593,24 +626,16 @@ public class Node extends AbstractActor {
             // msg returned to leaving node
             return;
 
-        ActorRef neighb = get_neighbour(); // get neighbour before removing the leaving node
-
         nodes.remove(msg.key); // remove node that leaved
 
         if (msg.new_elements != null) {
             elements.update(msg.new_elements); // update the data of the old element (if present)
         }
 
-        replication_indexes.remove(msg.key); // remove leaving node if present in repl. indexes
-        update_replication_indexes(msg.replication_index); // update this node's replication indexes with the updates
+        update_replication_indexes(); // update this node's replication indexes with the updates
         // received from the message
 
         update_replication(); // update replicated data
-
-        neighb.tell(
-                new NodeLeavingInfo(null, msg.key, this.replication_indexes),
-                getSelf()
-        );
     }
 
     private void update_replication_indexes(Map<Integer, Integer> replication_index_update) {
@@ -625,6 +650,19 @@ public class Node extends AbstractActor {
                     replication_indexes.put(entry.getKey(), entry.getValue());
                 }
             }
+        }
+    }
+
+    /**
+     * Function that updates replication indexes locally in a node by using just the list of nodes (that has to be
+     * updated)
+     */
+    private void update_replication_indexes() {
+        List<Integer> precedings_id = get_precedings_id(main.N);
+
+        replication_indexes.clear();
+        for (Integer id : precedings_id) {
+            replication_indexes.put(id, 0);
         }
     }
 
@@ -906,16 +944,10 @@ public class Node extends AbstractActor {
     public static class NodeLeavingInfo implements Serializable {
         MapElements new_elements;
         Integer key;
-        Map<Integer, Integer> replication_index = new HashMap<>();
 
-        public NodeLeavingInfo(MapElements new_elements, Integer key, Map<Integer, Integer> replication_index) {
+        public NodeLeavingInfo(MapElements new_elements, Integer key) {
             this.new_elements = new_elements;
             this.key = key;
-
-            for (Map.Entry<Integer, Integer> element : replication_index.entrySet()) {
-                // decrement indexes
-                this.replication_index.put(element.getKey(), element.getValue() - 1);
-            }
         }
     }
 

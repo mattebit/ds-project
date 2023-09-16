@@ -13,7 +13,7 @@ import java.util.*;
 
 public class main {
     final static int RANGE = 50; //Range of key in DKVS
-    final static int N = 4; //Number of replicas
+    final static int N = 2; //Number of replicas
     final static int W = 4; //Dimension of read quorum
     final static int R = 1; //Dimension of write quorum
     final static ActorSystem system = ActorSystem.create("DKVS");
