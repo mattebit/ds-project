@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Node extends AbstractActor {
+    final static int T = 20; //Timeout in second for read and write
     private final Map<Integer, ActorRef> nodes = new TreeMap<Integer, ActorRef>(); //Map between key and their nodes in DKVS
     private final MapElements elements = new MapElements();  //Object mantained by the node
     private final Map<Integer, Boolean> busy = new HashMap<Integer, Boolean>(); //Map that indicates if a nodes is writing on an element or not
@@ -260,7 +261,7 @@ public class Node extends AbstractActor {
         count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received W answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(20000, TimeUnit.MILLISECONDS),
+                Duration.create(T*1000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutW(count - 1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -312,7 +313,7 @@ public class Node extends AbstractActor {
         count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received R answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(20000, TimeUnit.MILLISECONDS),
+                Duration.create(T*1000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutR(count - 1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -517,7 +518,7 @@ public class Node extends AbstractActor {
         ActorRef neighbour = get_responsible_node(key);
         // ask data to neighbour
         neighbour.tell(new DataRequest(key), self());
-    }j
+    }
 
     private void onDataRequest(DataRequest msg) {
         // get preceding works because the new node is not present yet
@@ -604,7 +605,7 @@ public class Node extends AbstractActor {
      */
     private void onprintElem(PrintElem msg) {
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
-            System.out.println("idN " + this.key + " idE " + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+            System.out.println("idN:" + this.key + " idE:" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
         }
     }
 

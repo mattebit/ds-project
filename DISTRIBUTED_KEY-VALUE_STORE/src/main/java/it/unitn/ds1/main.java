@@ -5,6 +5,8 @@ import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.BlockTimer;
 import it.unitn.ds1.Client.JoinGroupMsgC;
 import it.unitn.ds1.Client.PrintAnswer;
+import it.unitn.ds1.Client.Update;
+import it.unitn.ds1.Client.Get;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
 
@@ -12,12 +14,12 @@ import java.io.IOException;
 import java.util.*;
 
 public class main {
-    final static int RANGE = 50; //Range of key in DKVS
-    final static int N = 2; //Number of replicas
+    static int N_NODES = 5; //Number of the initial nodes
+    final static int RANGE = 10*N_NODES; //Range of key in DKVS
+    final static int N = 4; //Number of replicas
     final static int W = 4; //Dimension of read quorum
     final static int R = 1; //Dimension of write quorum
     final static ActorSystem system = ActorSystem.create("DKVS");
-    static int N_NODES = 5; //Number of the initial nodes
     static int N_CLIENTS = 5; //Number of the initial clients
     static Map<Integer, ActorRef> mapgroupn;
 
@@ -32,8 +34,8 @@ public class main {
             groupc.add(system.actorOf(Client.props(i), "client" + i));
         }
         Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N);
-        // Join messages to the clients to inform them about the nodes
-        JoinGroupMsgC start2 = new JoinGroupMsgC();
+        // Join messages to the clients to inform them about the nodes and start the automatic read and write
+        JoinGroupMsgC start2 = new JoinGroupMsgC(true);
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
             // Join messages to the nodes to inform them about the map
@@ -45,7 +47,8 @@ public class main {
             System.in.read();
         } catch (IOException e) {
         }
-        // start all the clients
+        boolean done = false;
+        /*// start all the clients
         for (ActorRef client : groupc) {
             client.tell(start2, ActorRef.noSender());
         }
@@ -58,7 +61,6 @@ public class main {
         for (ActorRef client : groupc) {
             client.tell(block, ActorRef.noSender());
         }
-        boolean done = false;
         try {
             while (!done) {
                 System.out.println(">>> Press ENTER to print answer<<<");
@@ -98,6 +100,48 @@ public class main {
         } finally {
             system.terminate();
         }
+        */
+        //test replication
+        System.out.println(">>> Test replication and write <<<");
+        // Join messages to the clients to inform them about the nodes and start the automatic read and write
+        JoinGroupMsgC join = new JoinGroupMsgC(false);
+        // start all the clients
+        for (ActorRef client : groupc) {
+            client.tell(join, ActorRef.noSender());
+        }
+        //ask the user a key and value to write
+        int key;
+        String value;
+        Scanner sc=new Scanner(System.in);
+        System.out.print("Enter key: ");
+        key = sc.nextInt();
+        System.out.println("value: Pino");
+        value = "Pino";
+        Update write = new Update(key,value,false);
+        ActorRef client = groupc.get(0);
+        client.tell(write,ActorRef.noSender());
+        done = false;
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print Elements<<<");
+                System.in.read();
+                //TODO: list of change message to random nodes before add
+                //create_new_node(25);
+                PrintElem printa = new PrintElem();
+                for (ActorRef n : mapgroupn.values()) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+                System.out.println(">>> Press ENTER to exit <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {
+        } finally {
+            system.terminate();
+        }
+
     }
 
     public static ActorRef get_random_node() {
