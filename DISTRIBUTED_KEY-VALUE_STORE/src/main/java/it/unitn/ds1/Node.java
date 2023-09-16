@@ -473,7 +473,7 @@ public class Node extends AbstractActor {
         ActorRef neighbour = get_responsible_node(key);
         // ask data to neighbour
         neighbour.tell(new DataRequest(key), self());
-    }
+    }j
 
     private void onDataRequest(DataRequest msg) {
         // get preceding works because the new node is not present yet
