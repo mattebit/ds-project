@@ -43,7 +43,7 @@ public class main {
             entry.getValue().tell(start, ActorRef.noSender());
         }
         try {
-            System.out.println(">>> GO <<<");
+            System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
             System.in.read();
         } catch (IOException e) {
         }
@@ -118,11 +118,11 @@ public class main {
         System.out.println("value: Pino");
         value = "Pino";
         Update write = new Update(key,value,false);
-        ActorRef client = groupc.get(0);
-        client.tell(write,ActorRef.noSender());
+        ActorRef client = groupc.get(0); //select first client
+        client.tell(write,ActorRef.noSender()); //tell to the client to write the object (key,value)
         done = false;
         try {
-            while (!done) {
+            while (!done) { //print all elements from all nodes
                 System.out.println(">>> Press ENTER to print Elements<<<");
                 System.in.read();
                 //TODO: list of change message to random nodes before add
@@ -133,15 +133,41 @@ public class main {
                     System.out.println(">>> continue <<<");
                     System.in.read();
                 }
-                System.out.println(">>> Press ENTER to exit <<<");
+                System.out.println(">>> continue <<<");
                 System.in.read();
                 done = true;
             }
         } catch (IOException e) {
+        }
+
+        //Test read
+        System.out.println(">>> Test read element with key " + key+ "<<<");
+        Get read = new Get(key,false);
+        client.tell(read,ActorRef.noSender()); //tell to the client to read the object with the indicated key
+
+        //Test sequential consistency
+        List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test
+
+        System.out.println(">>> Test sequential consistency and multiple client working <<<");
+        System.out.println("Enter key of the first element you want insert: ");
+
+        int key1 = sc.nextInt();
+        keylist.add(key1);
+
+        System.out.println("Enter key of the second element you want insert: ");
+
+        int key2 = sc.nextInt();
+        keylist.add(key2);
+
+
+
+        try {
+            System.out.println(">>> Press ENTER to exit <<<");
+            System.in.read();
+        } catch (IOException e) {
         } finally {
             system.terminate();
         }
-
     }
 
     public static ActorRef get_random_node() {
