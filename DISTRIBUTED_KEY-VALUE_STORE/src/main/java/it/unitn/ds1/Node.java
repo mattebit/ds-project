@@ -4,8 +4,10 @@ import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.Response;
+import scala.Int;
 import scala.concurrent.duration.Duration;
 
+import javax.lang.model.element.Element;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +20,8 @@ public class Node extends AbstractActor {
     private final Set<Integer> to_be_updated = new HashSet<>(); // set of the indexes that remain to be uptaded after join
     private final Map<Integer, Req> waitC = new HashMap<Integer, Req>(); //Map between the key and the waiting request of a client
     private final Map<Integer, Integer> replication_indexes = new HashMap<>();
+    boolean isRecovering = false;
+    boolean isJoining = false;
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
     private int last_update_replication_indexes_hash = 0;
@@ -533,6 +537,7 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onDataResponse(DataResponse msg) {
+        isJoining = true; // needed in onResponse to differentiate from a recovery
         elements.update_remove(msg.data);
         // if there are no elements skip the read and announce itself
         if (msg.data.isEmpty()) {
@@ -568,13 +573,19 @@ public class Node extends AbstractActor {
         to_be_updated.remove(msg.key);
         if (to_be_updated.isEmpty()) { // if all elements to be updated have been updated, then announce
             // announce node to others
-            Map<Integer, Integer> tmp = new HashMap<>();
-            tmp.putAll(replication_indexes);
-            tmp.put(key, main.N - 2);
-            // Announce node to all the others
-            for (ActorRef n : nodes.values()) {
-                n.tell(new AnnounceNode(this.key, tmp, self()), self());
+            if (isJoining) {
+                Map<Integer, Integer> tmp = new HashMap<>();
+                tmp.putAll(replication_indexes);
+                tmp.put(key, main.N - 2);
+                // Announce node to all the others
+                for (ActorRef n : nodes.values()) {
+                    n.tell(new AnnounceNode(this.key, tmp, self()), self());
+                }
+                isJoining = false;
+            } else if (isRecovering) {
+                isRecovering = false;
             }
+
         }
     }
 
@@ -637,6 +648,19 @@ public class Node extends AbstractActor {
         // received from the message
 
         update_replication(); // update replicated data
+    }
+
+    public void onRecovery_request(Recovery_request msg) {
+        isRecovering = true;
+        // update repl indexes
+        update_replication_indexes();
+        // update repl data
+        update_replication();
+        // read on all responsible data
+        for (Integer el_id : get_responsible_elements().keySet()) {
+            // retrieve could be done to any node ideally
+            get_responsible_node(el_id).tell(new Retrive(el_id), getSelf());
+        }
     }
 
     private void update_replication_indexes(Map<Integer, Integer> replication_index_update) {
@@ -724,6 +748,8 @@ public class Node extends AbstractActor {
                 .match(ReplicationRequest.class, this::onReplicationRequest)
                 //Crash message
                 .match(Crashmsg.class, this::oncrash)
+                // Recovery
+                .match(Recovery_request.class, this::onRecovery_request)
                 .build();
     }
 
@@ -949,6 +975,13 @@ public class Node extends AbstractActor {
         public NodeLeavingInfo(MapElements new_elements, Integer key) {
             this.new_elements = new_elements;
             this.key = key;
+        }
+    }
+
+    public static class Recovery_request implements Serializable {
+        Map<ActorRef, Integer> nodes;
+        public Recovery_request(Map<ActorRef, Integer> nodes) {
+            this.nodes = nodes;
         }
     }
 
