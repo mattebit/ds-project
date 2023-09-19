@@ -648,7 +648,7 @@ public class Node extends AbstractActor {
         update_replication(); // update replicated data
     }
 
-    public void onRecovery_request(Recovery_request msg) {
+    public void onRecovery_request(RecoveryMsg msg) {
         isRecovering = true;
         // update repl indexes
         update_replication_indexes();
@@ -747,7 +747,7 @@ public class Node extends AbstractActor {
                 //Crash message
                 .match(Crashmsg.class, this::oncrash)
                 // Recovery
-                .match(Recovery_request.class, this::onRecovery_request)
+                .match(RecoveryMsg.class, this::onRecovery_request)
                 .build();
     }
 
@@ -772,10 +772,6 @@ public class Node extends AbstractActor {
 
     //Crash message
     public static class Crashmsg implements Serializable {
-    }
-
-    //Recovery message
-    public static class RecoveryMsg implements Serializable {
     }
 
     //Start message
@@ -976,10 +972,10 @@ public class Node extends AbstractActor {
         }
     }
 
-    public static class Recovery_request implements Serializable {
+    public static class RecoveryMsg implements Serializable {
         Map<ActorRef, Integer> nodes;
 
-        public Recovery_request(Map<ActorRef, Integer> nodes) {
+        public RecoveryMsg(Map<ActorRef, Integer> nodes) {
             this.nodes = nodes;
         }
     }
