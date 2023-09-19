@@ -4,10 +4,8 @@ import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import it.unitn.ds1.Client.Response;
-import scala.Int;
 import scala.concurrent.duration.Duration;
 
-import javax.lang.model.element.Element;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -265,7 +263,7 @@ public class Node extends AbstractActor {
         count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received W answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(T*1000, TimeUnit.MILLISECONDS),
+                Duration.create(T * 1000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutW(count - 1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -317,7 +315,7 @@ public class Node extends AbstractActor {
         count++; //Raise number of waiting request
         //Set the timeout to notify if after a period it isn't received R answers
         getContext().system().scheduler().scheduleOnce(
-                Duration.create(T*1000, TimeUnit.MILLISECONDS),
+                Duration.create(T * 1000, TimeUnit.MILLISECONDS),
                 getSelf(),
                 new TimeoutR(count - 1, msg.key), // the message to send
                 getContext().system().dispatcher(), getSelf()
@@ -980,6 +978,7 @@ public class Node extends AbstractActor {
 
     public static class Recovery_request implements Serializable {
         Map<ActorRef, Integer> nodes;
+
         public Recovery_request(Map<ActorRef, Integer> nodes) {
             this.nodes = nodes;
         }

@@ -2,11 +2,9 @@ package it.unitn.ds1;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import it.unitn.ds1.Client.BlockTimer;
-import it.unitn.ds1.Client.JoinGroupMsgC;
-import it.unitn.ds1.Client.PrintAnswer;
-import it.unitn.ds1.Client.Update;
 import it.unitn.ds1.Client.Get;
+import it.unitn.ds1.Client.JoinGroupMsgC;
+import it.unitn.ds1.Client.Update;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
 
@@ -14,12 +12,12 @@ import java.io.IOException;
 import java.util.*;
 
 public class main {
-    static int N_NODES = 5; //Number of the initial nodes
-    final static int RANGE = 10*N_NODES; //Range of key in DKVS
     final static int N = 4; //Number of replicas
     final static int W = 4; //Dimension of read quorum
     final static int R = 1; //Dimension of write quorum
     final static ActorSystem system = ActorSystem.create("DKVS");
+    static int N_NODES = 5; //Number of the initial nodes
+    final static int RANGE = 10 * N_NODES; //Range of key in DKVS
     static int N_CLIENTS = 5; //Number of the initial clients
     static Map<Integer, ActorRef> mapgroupn;
 
@@ -112,14 +110,14 @@ public class main {
         //ask the user a key and value to write
         int key;
         String value;
-        Scanner sc=new Scanner(System.in);
+        Scanner sc = new Scanner(System.in);
         System.out.print("Enter key: ");
         key = sc.nextInt();
         System.out.println("value: Pino");
         value = "Pino";
-        Update write = new Update(key,value,false);
+        Update write = new Update(key, value, false);
         ActorRef client = groupc.get(0); //select first client
-        client.tell(write,ActorRef.noSender()); //tell to the client to write the object (key,value)
+        client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
         done = false;
         try {
             while (!done) { //print all elements from all nodes
@@ -141,9 +139,9 @@ public class main {
         }
 
         //Test read
-        System.out.println(">>> Test read element with key " + key+ "<<<");
-        Get read = new Get(key,false);
-        client.tell(read,ActorRef.noSender()); //tell to the client to read the object with the indicated key
+        System.out.println(">>> Test read element with key " + key + "<<<");
+        Get read = new Get(key, false);
+        client.tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
 
         //Test sequential consistency
         List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test
@@ -158,7 +156,6 @@ public class main {
 
         int key2 = sc.nextInt();
         keylist.add(key2);
-
 
 
         try {
