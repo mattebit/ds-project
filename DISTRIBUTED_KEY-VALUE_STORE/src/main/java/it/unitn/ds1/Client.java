@@ -25,6 +25,8 @@ public class Client extends AbstractActor {
     Cancellable timer1; //Read timer
     Cancellable timer2; //Write timer
     boolean stop; //variable that decide if the client can accept another read and message
+    private final int KEY1 = 1; //key of th object we want to utilize to test the sequential consitency
+    private final int KEY2 = 10; //key of th object we want to utilize to test the sequential consitency
 
     public Client(int id) {
         this.id = id;
@@ -50,46 +52,46 @@ public class Client extends AbstractActor {
      *
      * @param msg
      */
-    private void onJoinGroupMsgC(JoinGroupMsgC msg) {
+    private void onAutomate(Automate msg) {
         /*for (ActorRef b: msg.group) {
             this.peers.add(b);
         }*/
-        if (msg.auto) {
-            //Start of the occurrences of write
-            timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
-                    Duration.create(3, TimeUnit.SECONDS),        // when to start generating messages
-                    Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
-                    getSelf(),                                          // destination actor reference
-                    new Update(0, "0", msg.auto),                                // the message to send
-                    getContext().system().dispatcher(),                 // system dispatcher
-                    getSelf()                                           // source of the message (myself)
+
+        //Start of the occurrences of write
+        timer2 = getContext().system().scheduler().scheduleWithFixedDelay(
+                Duration.create(3, TimeUnit.SECONDS),        // when to start generating messages
+                Duration.create(9, TimeUnit.SECONDS),        // how frequently generate them
+                getSelf(),                                          // destination actor reference
+                new Update(0, "0", true),                                // the message to send
+                getContext().system().dispatcher(),                 // system dispatcher
+                getSelf()                                           // source of the message (myself)
+        );
+        /*for(int i=0;i<4;i++){
+            getContext().system().scheduler().scheduleOnce(
+                    Duration.create(2+i, TimeUnit.SECONDS),
+                    getSelf(),
+                    new update(), // the message to send
+                    getContext().system().dispatcher(), getSelf()
             );
-            /*for(int i=0;i<4;i++){
-                getContext().system().scheduler().scheduleOnce(
-                        Duration.create(2+i, TimeUnit.SECONDS),
-                        getSelf(),
-                        new update(), // the message to send
-                        getContext().system().dispatcher(), getSelf()
-                );
-            }*/
-            //Start of the occurrences of read
-            timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
-                    Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
-                    Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
-                    getSelf(),                                          // destination actor reference
-                    new Get(0, msg.auto),                                // the message to send
-                    getContext().system().dispatcher(),                 // system dispatcher
-                    getSelf()                                           // source of the message (myself)
+        }*/
+        //Start of the occurrences of read
+        timer1 = getContext().system().scheduler().scheduleWithFixedDelay(
+                Duration.create(4, TimeUnit.SECONDS),        // when to start generating messages
+                Duration.create(8, TimeUnit.SECONDS),        // how frequently generate them
+                getSelf(),                                          // destination actor reference
+                new Get(0, true),                                // the message to send
+                getContext().system().dispatcher(),                 // system dispatcher
+                getSelf()                                           // source of the message (myself)
+        );
+        /*for(int i=0;i<4;i++){
+            getContext().system().scheduler().scheduleOnce(
+                    Duration.create(3+i, TimeUnit.SECONDS),
+                    getSelf(),
+                    new get(), // the message to send
+                    getContext().system().dispatcher(), getSelf()
             );
-            /*for(int i=0;i<4;i++){
-                getContext().system().scheduler().scheduleOnce(
-                        Duration.create(3+i, TimeUnit.SECONDS),
-                        getSelf(),
-                        new get(), // the message to send
-                        getContext().system().dispatcher(), getSelf()
-                );
-            }*/
-        }
+        }*/
+
     }
 
     /**
@@ -105,7 +107,11 @@ public class Client extends AbstractActor {
         }
         if (msg.auto) {
             int to = rnd.nextInt(main.mapgroupn.size()); //Choice a random target node
-            int key = rnd.nextInt(main.RANGE); //Choice a random target object key
+            //int key = rnd.nextInt(main.RANGE); //Choice a random target object key
+            List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test of the sequential consistency
+            keylist.add(KEY1);
+            keylist.add(KEY2);
+            int key = keylist.get(rnd.nextInt(keylist.size()));
             // model a random network/processing delay
             try {
                 Thread.sleep(rnd.nextInt(5));
@@ -130,7 +136,11 @@ public class Client extends AbstractActor {
             return;
         }
         if (msg.auto) {
-            int key = rnd.nextInt(main.RANGE); //Choice a random target object key
+            //int key = rnd.nextInt(main.RANGE); //Choice a random target object key
+            List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test of the sequential consistency
+            keylist.add(KEY1);
+            keylist.add(KEY2);
+            int key = keylist.get(rnd.nextInt(keylist.size()));
             String val = Integer.toString(this.id); //Value to write
             // model a random network/processing delay
             try {
@@ -150,7 +160,11 @@ public class Client extends AbstractActor {
      * @param msg
      */
     private void onresponse(Response msg) {
-        System.out.println("ID:" + this.id + " version:" + msg.p.getValue() + " key:" + msg.key + " value:" + msg.p.getKey() + " op:" + msg.op + " success:" + msg.success + " Timestamp" + new Timestamp(date.getTime()));
+        if(msg.success){
+            System.out.println("ID:" + this.id + " version:" + msg.p.getValue() + " key:" + msg.key + " value:" + msg.p.getKey() + " op:" + msg.op + " success:" + msg.success + " Timestamp:" + new Timestamp(date.getTime()));
+        }else{
+            System.out.println("ID:" + this.id + " key:" + msg.key + " op:" + msg.op + " success:" + msg.success + " Timestamp:" + new Timestamp(date.getTime()));
+        }
         responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
         stop = false;
     }
@@ -163,17 +177,17 @@ public class Client extends AbstractActor {
     private void onprintAnswer(PrintAnswer msg) {
         for (Result r : responseList) {
             if (r != null && r.success) {
-                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
+                System.out.println("ID:" + this.id + " version:" + r.p.getValue() + " key:" + r.key + " value:" + r.p.getKey() + " op:" + r.op + " success:" + r.success + " Timestamp:" + r.t);
             }
             if (r != null && !r.success) {
-                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success + " Timestamp" + r.t);
+                System.out.println("ID:" + this.id + " key:" + r.key + " op:" + r.op + " success:" + r.success + " Timestamp:" + r.t);
             }
         }
     }
 
     public Receive createReceive() {
         return receiveBuilder()
-                .match(JoinGroupMsgC.class, this::onJoinGroupMsgC)
+                .match(Automate.class, this::onAutomate)
                 .match(Get.class, this::onget)
                 .match(Update.class, this::onupdate)
                 .match(Response.class, this::onresponse)
@@ -183,12 +197,7 @@ public class Client extends AbstractActor {
     }
 
     //Start message
-    public static class JoinGroupMsgC implements Serializable {
-        public final boolean auto; //variable that decides if the read and write are automatic
-
-        public JoinGroupMsgC(boolean auto) {
-            this.auto = auto;
-        }
+    public static class Automate implements Serializable {
     }
 
     //Message to block the timers

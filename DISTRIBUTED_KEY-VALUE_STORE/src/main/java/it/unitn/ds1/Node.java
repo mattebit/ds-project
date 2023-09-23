@@ -23,6 +23,7 @@ public class Node extends AbstractActor {
     int key; //Key of the object
     int count; //Counter of the request this node send as coordinator
     private int last_update_replication_indexes_hash = 0;
+    private Map<Integer,ArrayList<Integer>> versionMap = new TreeMap<Integer,ArrayList<Integer>>();
 
     public Node(int id) {
         this.key = id;
@@ -459,6 +460,12 @@ public class Node extends AbstractActor {
      */
     private void onwrite(Write msg) {
         this.elements.put(msg.key, new Pair(msg.value, msg.ver));
+        if(this.versionMap.containsKey(msg.key)){
+            this.versionMap.get(msg.key).add(msg.ver);
+        }else{
+            this.versionMap.put(msg.key,new ArrayList<Integer>());
+            this.versionMap.get(msg.key).add(msg.ver);
+        }
         this.busy.put(msg.key, false);
     }
 
@@ -613,8 +620,16 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onprintElem(PrintElem msg) {
+        System.out.println("Objects in the node:");
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
             System.out.println("idN:" + this.key + " idE:" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+        }
+        System.out.println("Version list:");
+        for (Map.Entry<Integer, ArrayList<Integer>> entry : this.versionMap.entrySet()) {
+            System.out.println("idN:" + this.key + " idE:" + entry.getKey());
+            for (Integer version : entry.getValue()) {
+                System.out.println("version:" + version);
+            }
         }
     }
 

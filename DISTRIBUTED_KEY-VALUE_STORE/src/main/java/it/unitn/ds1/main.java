@@ -3,10 +3,13 @@ package it.unitn.ds1;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.Get;
-import it.unitn.ds1.Client.JoinGroupMsgC;
+import it.unitn.ds1.Client.Automate;
 import it.unitn.ds1.Client.Update;
+import it.unitn.ds1.Client.BlockTimer;
+import it.unitn.ds1.Client.PrintAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
+
 
 import java.io.IOException;
 import java.util.*;
@@ -32,8 +35,6 @@ public class main {
             groupc.add(system.actorOf(Client.props(i), "client" + i));
         }
         Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N);
-        // Join messages to the clients to inform them about the nodes and start the automatic read and write
-        JoinGroupMsgC start2 = new JoinGroupMsgC(true);
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
             // Join messages to the nodes to inform them about the map
@@ -99,14 +100,9 @@ public class main {
             system.terminate();
         }
         */
-        //test replication
+        /*//test replication and write
         System.out.println(">>> Test replication and write <<<");
-        // Join messages to the clients to inform them about the nodes and start the automatic read and write
-        JoinGroupMsgC join = new JoinGroupMsgC(false);
-        // start all the clients
-        for (ActorRef client : groupc) {
-            client.tell(join, ActorRef.noSender());
-        }
+
         //ask the user a key and value to write
         int key;
         String value;
@@ -136,35 +132,81 @@ public class main {
                 done = true;
             }
         } catch (IOException e) {
-        }
+        }*/
 
-        //Test read
+        /*//Test read
         System.out.println(">>> Test read element with key " + key + "<<<");
         Get read = new Get(key, false);
         client.tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
-
+        */
         //Test sequential consistency
-        List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test
-
         System.out.println(">>> Test sequential consistency and multiple client working <<<");
-        System.out.println("Enter key of the first element you want insert: ");
 
-        int key1 = sc.nextInt();
-        keylist.add(key1);
-
-        System.out.println("Enter key of the second element you want insert: ");
-
-        int key2 = sc.nextInt();
-        keylist.add(key2);
-
+        Automate join = new Automate();// Message to start the automatic read and write by clients
+        // All clients start
+        for (ActorRef clienta : groupc) {
+            clienta.tell(join, ActorRef.noSender());
+        }
 
         try {
-            System.out.println(">>> Press ENTER to exit <<<");
+            System.out.println(">>> Block read and write<<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+        BlockTimer block = new BlockTimer(); //Block the automatic read and write
+        for (ActorRef clienta : groupc) {
+            clienta.tell(block, ActorRef.noSender());
+        }
+
+        done = false;
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print Elements<<<");
+                System.in.read();
+                //TODO: list of change message to random nodes before add
+                //create_new_node(25);
+                PrintElem printa = new PrintElem();
+                for (ActorRef n : mapgroupn.values()) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+                System.out.println(">>> Press ENTER to exit from print <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {
+        }
+        done = false;
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print answer of the clients <<<");
+                System.in.read();
+                //create_new_node(25);
+                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+                PrintAnswer printa = new PrintAnswer();
+                for (ActorRef n : groupc) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+                System.out.println(">>> Press ENTER to exit from print <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {
+        }
+
+        try {
+            System.out.println(">>> Press ENTER to terminate program <<<");
             System.in.read();
         } catch (IOException e) {
         } finally {
             system.terminate();
         }
+
+
+
     }
 
     public static ActorRef get_random_node() {
@@ -196,4 +238,6 @@ public class main {
         // tell the new node about the bootstrapper
         a.tell(new Node.JoinNode(bootstrapper, repl_indexes.get(id)), ActorRef.noSender());
     }
+
+
 }
