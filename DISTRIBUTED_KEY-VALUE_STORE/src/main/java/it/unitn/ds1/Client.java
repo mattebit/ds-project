@@ -107,11 +107,11 @@ public class Client extends AbstractActor {
         }
         if (msg.auto) {
             int to = rnd.nextInt(main.mapgroupn.size()); //Choice a random target node
-            //int key = rnd.nextInt(main.RANGE); //Choice a random target object key
             List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test of the sequential consistency
             keylist.add(KEY1);
             keylist.add(KEY2);
-            int key = keylist.get(rnd.nextInt(keylist.size()));
+            //int key = keylist.get(rnd.nextInt(keylist.size()));
+            int key = rnd.nextInt(main.RANGE); //Choice a random target object key
             // model a random network/processing delay
             try {
                 Thread.sleep(rnd.nextInt(5));
@@ -140,7 +140,8 @@ public class Client extends AbstractActor {
             List<Integer> keylist = new ArrayList<Integer>(); //key to use in the test of the sequential consistency
             keylist.add(KEY1);
             keylist.add(KEY2);
-            int key = keylist.get(rnd.nextInt(keylist.size()));
+            //int key = keylist.get(rnd.nextInt(keylist.size()));
+            int key = rnd.nextInt(main.RANGE); //Choice a random target object key
             String val = Integer.toString(this.id); //Value to write
             // model a random network/processing delay
             try {

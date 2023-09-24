@@ -9,6 +9,7 @@ import it.unitn.ds1.Client.BlockTimer;
 import it.unitn.ds1.Client.PrintAnswer;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
+import it.unitn.ds1.Node.JoinRequest;
 
 
 import java.io.IOException;
@@ -60,45 +61,8 @@ public class main {
         for (ActorRef client : groupc) {
             client.tell(block, ActorRef.noSender());
         }
-        try {
-            while (!done) {
-                System.out.println(">>> Press ENTER to print answer<<<");
-                System.in.read();
-                //create_new_node(25);
-                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
-                PrintAnswer printa = new PrintAnswer();
-                for (ActorRef n : groupc) {
-                    n.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-                System.out.println(">>> Press ENTER to exit <<<");
-                System.in.read();
-                done = true;
-            }
-        } catch (IOException e) {
-        }
-        done = false;
-        try {
-            while (!done) {
-                System.out.println(">>> Press ENTER to print Elements<<<");
-                System.in.read();
-                //TODO: list of change message to random nodes before add
-                //create_new_node(25);
-                PrintElem printa = new PrintElem();
-                for (ActorRef n : mapgroupn.values()) {
-                    n.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-                System.out.println(">>> Press ENTER to exit <<<");
-                System.in.read();
-                done = true;
-            }
-        } catch (IOException e) {
-        } finally {
-            system.terminate();
-        }
+        printclients(groupc);
+        printnodes();
         */
         /*//test replication and write
         System.out.println(">>> Test replication and write <<<");
@@ -114,88 +78,33 @@ public class main {
         Update write = new Update(key, value, false);
         ActorRef client = groupc.get(0); //select first client
         client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
-        done = false;
-        try {
-            while (!done) { //print all elements from all nodes
-                System.out.println(">>> Press ENTER to print Elements<<<");
-                System.in.read();
-                //TODO: list of change message to random nodes before add
-                //create_new_node(25);
-                PrintElem printa = new PrintElem();
-                for (ActorRef n : mapgroupn.values()) {
-                    n.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-                System.out.println(">>> continue <<<");
-                System.in.read();
-                done = true;
-            }
-        } catch (IOException e) {
-        }*/
+        printnodes();
+        */
 
         /*//Test read
         System.out.println(">>> Test read element with key " + key + "<<<");
         Get read = new Get(key, false);
         client.tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
         */
-        //Test sequential consistency
+        /*//Test sequential consistency
         System.out.println(">>> Test sequential consistency and multiple client working <<<");
 
-        Automate join = new Automate();// Message to start the automatic read and write by clients
-        // All clients start
-        for (ActorRef clienta : groupc) {
-            clienta.tell(join, ActorRef.noSender());
-        }
+        automaticop(groupc)
 
-        try {
-            System.out.println(">>> Block read and write<<<");
+        printnodes();
+        printclients(groupc);
+        */
+        //test join
+        System.out.println(">>> Test join operation <<<");
+        automaticop(groupc);
+        /*try {
+            System.out.println(">>> Create a new node <<<"); //wait that the operations finish
             System.in.read();
         } catch (IOException e) {
         }
-        BlockTimer block = new BlockTimer(); //Block the automatic read and write
-        for (ActorRef clienta : groupc) {
-            clienta.tell(block, ActorRef.noSender());
-        }
-
-        done = false;
-        try {
-            while (!done) {
-                System.out.println(">>> Press ENTER to print Elements<<<");
-                System.in.read();
-                //TODO: list of change message to random nodes before add
-                //create_new_node(25);
-                PrintElem printa = new PrintElem();
-                for (ActorRef n : mapgroupn.values()) {
-                    n.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-                System.out.println(">>> Press ENTER to exit from print <<<");
-                System.in.read();
-                done = true;
-            }
-        } catch (IOException e) {
-        }
-        done = false;
-        try {
-            while (!done) {
-                System.out.println(">>> Press ENTER to print answer of the clients <<<");
-                System.in.read();
-                //create_new_node(25);
-                mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
-                PrintAnswer printa = new PrintAnswer();
-                for (ActorRef n : groupc) {
-                    n.tell(printa, ActorRef.noSender());
-                    System.out.println(">>> continue <<<");
-                    System.in.read();
-                }
-                System.out.println(">>> Press ENTER to exit from print <<<");
-                System.in.read();
-                done = true;
-            }
-        } catch (IOException e) {
-        }
+        create_new_node(15);
+        */
+        printnodes();
 
         try {
             System.out.println(">>> Press ENTER to terminate program <<<");
@@ -204,9 +113,6 @@ public class main {
         } finally {
             system.terminate();
         }
-
-
-
     }
 
     public static ActorRef get_random_node() {
@@ -237,6 +143,81 @@ public class main {
         Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N); // recalculate repl indexes for new node
         // tell the new node about the bootstrapper
         a.tell(new Node.JoinNode(bootstrapper, repl_indexes.get(id)), ActorRef.noSender());
+    }
+
+    /**
+     * Print every element of every node and the history of the version
+     */
+    public static void printnodes() {
+        boolean done = false;
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print Elements<<<");
+                System.in.read();
+                //TODO: list of change message to random nodes before add
+                //create_new_node(25);
+                PrintElem printa = new PrintElem();
+                for (ActorRef n : mapgroupn.values()) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+                System.out.println(">>> Press ENTER to exit from print <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {
+        }
+    }
+
+    /**
+     * Print the log of the different operation did by every client
+     *
+     * @param groupc
+     */
+    public static void printclients(List<ActorRef> groupc) {
+        boolean done = false;
+        try {
+            while (!done) {
+                System.out.println(">>> Press ENTER to print answer of the clients <<<");
+                System.in.read();
+                //create_new_node(25);
+                //mapgroupn.get(20).tell(new Node.LeaveRequest(), ActorRef.noSender());
+                PrintAnswer printa = new PrintAnswer();
+                for (ActorRef n : groupc) {
+                    n.tell(printa, ActorRef.noSender());
+                    System.out.println(">>> continue <<<");
+                    System.in.read();
+                }
+                System.out.println(">>> Press ENTER to exit from print <<<");
+                System.in.read();
+                done = true;
+            }
+        } catch (IOException e) {
+        }
+    }
+
+    /**
+     * Start automatic operation from clients
+     *
+     * @param groupc
+     */
+    public static void automaticop(List<ActorRef> groupc) {
+        Automate join = new Automate();// Message to start the automatic read and write by clients
+        // All clients start
+        for (ActorRef clienta : groupc) {
+            clienta.tell(join, ActorRef.noSender());
+        }
+
+        try {
+            System.out.println(">>> Block read and write<<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+        BlockTimer block = new BlockTimer(); //Block the automatic read and write
+        for (ActorRef clienta : groupc) {
+            clienta.tell(block, ActorRef.noSender());
+        }
     }
 
 

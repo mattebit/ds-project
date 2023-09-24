@@ -470,7 +470,7 @@ public class Node extends AbstractActor {
     }
 
     /**
-     * //Handling the timeout for read operation
+     * Handling the timeout for read operation
      *
      * @param msg
      */
@@ -620,6 +620,7 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onprintElem(PrintElem msg) {
+        System.out.println("ID node:" + this.key);
         System.out.println("Objects in the node:");
         for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
             System.out.println("idN:" + this.key + " idE:" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
