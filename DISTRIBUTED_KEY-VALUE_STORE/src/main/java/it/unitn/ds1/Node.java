@@ -341,7 +341,7 @@ public class Node extends AbstractActor {
         this.busy.put(msg.key, true);
         if (e == null) {
             e = new Pair("BESTIALE", -1);
-            System.out.println("ON msg " + msg.key + " write " + " countreq " + msg.count + " vers " + e.getValue());
+            //System.out.println("ON msg " + msg.key + " write " + " countreq " + msg.count + " vers " + e.getValue());
             //element.put(msg.key,e);
         }
         if (e != null) {
@@ -441,9 +441,6 @@ public class Node extends AbstractActor {
                 waitC.get(msg.count).success = false;
                 int maxV = maxI(waitC.get(msg.count).version);
                 maxV++;
-                if (msg.key == 0 || msg.key == 1) {
-                    System.out.println("maxV " + maxV + " count " + msg.count);
-                }
                 waitC.get(msg.count).a.tell(new Response(new Pair(waitC.get(msg.count).value, maxV), true, msg.key, "write"), getSelf());
                 for (ActorRef r : waitC.get(msg.count).repl) {
                     r.tell(new Write(maxV, waitC.get(msg.count).value, msg.key), getSelf());
@@ -476,7 +473,7 @@ public class Node extends AbstractActor {
      */
     private void onTimeoutR(TimeoutR msg) {
         if (waitC.get(msg.count).timeout) {
-            System.out.println("TIMEOOUTRRR");
+            System.out.println("TIMEOUTR");
             waitC.get(msg.count).a.tell(new Response(null, false, msg.key, "read"), getSelf());
             waitC.get(msg.count).success = false;
         }
@@ -489,6 +486,7 @@ public class Node extends AbstractActor {
      */
     private void onTimeoutW(TimeoutW msg) {
         if (waitC.get(msg.count).timeout) {
+            System.out.println("TIMEOUTW");
             waitC.get(msg.count).a.tell(new Response(null, false, msg.key, "write"), getSelf());
             waitC.get(msg.count).success = false;
             for (ActorRef a : waitC.get(msg.count).repl) { //UnLock every node from write operation
