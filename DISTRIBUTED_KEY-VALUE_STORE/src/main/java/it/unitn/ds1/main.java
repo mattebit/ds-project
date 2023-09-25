@@ -47,7 +47,6 @@ public class main {
             System.in.read();
         } catch (IOException e) {
         }
-        boolean done = false;
         /*// start all the clients
         for (ActorRef client : groupc) {
             client.tell(start2, ActorRef.noSender());
@@ -64,35 +63,18 @@ public class main {
         printclients(groupc);
         printnodes();
         */
-        /*//test replication and write
-        System.out.println(">>> Test replication and write <<<");
-
-        //ask the user a key and value to write
-        int key;
-        String value;
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Enter key: ");
-        key = sc.nextInt();
-        System.out.println("value: Pino");
-        value = "Pino";
-        Update write = new Update(key, value, false);
-        ActorRef client = groupc.get(0); //select first client
-        client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
-        printnodes();
+        /*
+        //test replication and write
+        test_w_rep(groupc)
         */
 
-        /*//Test read
-        System.out.println(">>> Test read element with key " + key + "<<<");
-        Get read = new Get(key, false);
-        client.tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
+        /*
+        //Test read
+        test_r(groupc)
         */
-        /*//Test sequential consistency
-        System.out.println(">>> Test sequential consistency and multiple client working <<<");
-
-        automaticop(groupc)
-
-        printnodes();
-        printclients(groupc);
+        /*
+        //Test sequential consistency
+        test_se_co(groupc)
         */
         //test join
         System.out.println(">>> Test join operation <<<");
@@ -219,6 +201,55 @@ public class main {
             clienta.tell(block, ActorRef.noSender());
         }
     }
+    /**
+     * Test replication and write
+     *
+     * @param groupc
+     */
+    public static void test_w_rep(List<ActorRef> groupc) {
+        System.out.println(">>> Test replication and write <<<");
+        //ask the user a key and value to write
+        int key;
+        String value;
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter key: ");
+        key = sc.nextInt();
+        System.out.println("value: Pino");
+        value = "Pino";
+        Update write = new Update(key, value, false);
+        ActorRef client = groupc.get(0); //select first client
+        client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
+        printnodes();
+    }
+    /**
+     * Test read
+     *
+     * @param groupc
+     */
+    public static void test_r(List<ActorRef> groupc) {
+        System.out.println(">>> Test read element <<<");
+        int key;
+        String value;
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter key: ");
+        key = sc.nextInt();
+        Get read = new Get(key, false);
+        groupc.get(0).tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
+    }
+    /**
+     * Test sequential consistency
+     *
+     * @param groupc
+     */
+    public static void test_se_co(List<ActorRef> groupc) {
+        System.out.println(">>> Test sequential consistency and multiple client working <<<");
+
+        automaticop(groupc);
+        printnodes();
+        printclients(groupc);
+    }
+
+
 
 
 }
