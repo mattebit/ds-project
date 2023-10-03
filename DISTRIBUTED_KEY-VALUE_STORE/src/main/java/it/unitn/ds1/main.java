@@ -2,15 +2,9 @@ package it.unitn.ds1;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import it.unitn.ds1.Client.Get;
-import it.unitn.ds1.Client.Automate;
-import it.unitn.ds1.Client.Update;
-import it.unitn.ds1.Client.BlockTimer;
-import it.unitn.ds1.Client.PrintAnswer;
+import it.unitn.ds1.Client.*;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
-import it.unitn.ds1.Node.JoinRequest;
-
 
 import java.io.IOException;
 import java.util.*;
@@ -201,6 +195,7 @@ public class main {
             clienta.tell(block, ActorRef.noSender());
         }
     }
+
     /**
      * Test replication and write
      *
@@ -221,6 +216,7 @@ public class main {
         client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
         printnodes();
     }
+
     /**
      * Test read
      *
@@ -236,6 +232,7 @@ public class main {
         Get read = new Get(key, false);
         groupc.get(0).tell(read, ActorRef.noSender()); //tell to the client to read the object with the indicated key
     }
+
     /**
      * Test sequential consistency
      *
@@ -248,8 +245,6 @@ public class main {
         printnodes();
         printclients(groupc);
     }
-
-
 
 
 }

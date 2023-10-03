@@ -20,13 +20,13 @@ public class Client extends AbstractActor {
     //private List<ActorRef> peers = new ArrayList<>();
     private final Random rnd = new Random();
     private final List<Result> responseList = new ArrayList<Result>(); //List of the answer from the DKVS
+    private final int KEY1 = 1; //key of th object we want to utilize to test the sequential consitency
+    private final int KEY2 = 10; //key of th object we want to utilize to test the sequential consitency
     int id; //Id of the client
     Date date = new Date();
     Cancellable timer1; //Read timer
     Cancellable timer2; //Write timer
     boolean stop; //variable that decide if the client can accept another read and message
-    private final int KEY1 = 1; //key of th object we want to utilize to test the sequential consitency
-    private final int KEY2 = 10; //key of th object we want to utilize to test the sequential consitency
 
     public Client(int id) {
         this.id = id;
@@ -161,9 +161,9 @@ public class Client extends AbstractActor {
      * @param msg
      */
     private void onresponse(Response msg) {
-        if(msg.success){
+        if (msg.success) {
             System.out.println("ID:" + this.id + " version:" + msg.p.getValue() + " key:" + msg.key + " value:" + msg.p.getKey() + " op:" + msg.op + " success:" + msg.success + " Timestamp:" + new Timestamp(date.getTime()));
-        }else{
+        } else {
             System.out.println("ID:" + this.id + " key:" + msg.key + " op:" + msg.op + " success:" + msg.success + " Timestamp:" + new Timestamp(date.getTime()));
         }
         responseList.add(new Result(msg.p, msg.key, msg.success, msg.op, new Timestamp(date.getTime())));
