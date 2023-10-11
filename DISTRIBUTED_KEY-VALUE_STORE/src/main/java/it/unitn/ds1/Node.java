@@ -733,7 +733,7 @@ public class Node extends AbstractActor {
      * updated)
      */
     private void update_replication_indexes() {
-        List<Integer> precedings_id = get_precedings_id(main.N);
+        List<Integer> precedings_id = get_precedings_id(main.N-1);
 
         replication_indexes.clear();
         for (Integer id : precedings_id) {
