@@ -582,12 +582,9 @@ public class Node extends AbstractActor {
         elements.update_remove(msg.data);
         // if there are no elements skip the read and announce itself
         if (msg.data.isEmpty()) {
-            Map<Integer, Integer> tmp = new HashMap<>();
-            tmp.putAll(replication_indexes);
-            tmp.put(key, main.N - 2);
             // announce to all nodes
             for (ActorRef n : nodes.values()) {
-                n.tell(new AnnounceNode(this.key, tmp, self()), self());
+                n.tell(new AnnounceNode(this.key, self()), self());
             }
             return;
         }
