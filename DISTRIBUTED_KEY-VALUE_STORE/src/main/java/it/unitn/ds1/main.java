@@ -104,6 +104,33 @@ public class main {
         printnodes();
     }
 
+    /**
+     * Demo that inits the nodes with random elements and creates three new nodes 15
+     *
+     * @throws IOException
+     */
+    public static void demo_random_elements_create_node() throws IOException {
+        init(false);
+
+        try {
+            System.out.println(">>> Initiate nodes <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        automaticop(groupc); // generates random data in nodes
+
+        try {
+            System.out.println(">>> Create new node 15 <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        create_new_node(15);
+
+        printnodes();
+    }
+
     public static void demo_fixed_elements_remove_node() throws IOException {
         init(true);
 
@@ -120,59 +147,17 @@ public class main {
         printnodes();
     }
 
-    public static void demo_random_elements_standard() {
-        init(false);
-
-        try {
-            System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
-            System.in.read();
-        } catch (IOException e) {
-        }
-
-        automaticop(groupc); // generates random data in nodes
-
-        /*// start all the clients
-        for (ActorRef client : groupc) {
-            client.tell(start2, ActorRef.noSender());
-        }
-        try {
-            System.out.println(">>> Block read and write<<<");
-            System.in.read();
-        } catch (IOException e) {
-        }
-        BlockTimer block = new BlockTimer();
-        for (ActorRef client : groupc) {
-            client.tell(block, ActorRef.noSender());
-        }
-        printclients(groupc);
-        printnodes();
-        */
-        /*
-        //test replication and write
-        test_w_rep(groupc)
-        */
-
-        /*
-        //Test read
-        test_r(groupc)
-        */
-        /*
-        //Test sequential consistency
-        test_se_co(groupc)
-        */
-
-        printnodes(); // prints nodes
-    }
-
     public static void main(String[] args) throws IOException {
         System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
         System.in.read();
 
         // select just one of the one below:
-
-        //demo_random_elements_standard();
-        demo_fixed_elements_standard();
+        //test_w_rep();
+        test_r();
+        //test_se_co();
+        //demo_fixed_elements_standard();
         //demo_fixed_elements_create_node();
+        //demo_random_elements_create_node();
         //demo_fixed_elements_remove_node();
 
         try {
@@ -292,10 +277,15 @@ public class main {
     /**
      * Test replication and write
      *
-     * @param groupc
      */
-    public static void test_w_rep(List<ActorRef> groupc) {
-        System.out.println(">>> Test replication and write <<<");
+    public static void test_w_rep() {
+        init(false);
+
+        try {
+            System.out.println(">>> Test replication and write <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
         //ask the user a key and value to write
         int key;
         String value;
@@ -307,16 +297,33 @@ public class main {
         Update write = new Update(key, value, false);
         ActorRef client = groupc.get(0); //select first client
         client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
+
         printnodes();
     }
 
     /**
      * Test read
      *
-     * @param groupc
      */
-    public static void test_r(List<ActorRef> groupc) {
-        System.out.println(">>> Test read element <<<");
+    public static void test_r() {
+        init(false);
+
+        try {
+            System.out.println(">>> Initiate nodes <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        automaticop(groupc); // generates random data in nodes
+
+        printnodes();
+
+        try {
+            System.out.println(">>> Test read element <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
         int key;
         String value;
         Scanner sc = new Scanner(System.in);
@@ -329,12 +336,24 @@ public class main {
     /**
      * Test sequential consistency
      *
-     * @param groupc
      */
-    public static void test_se_co(List<ActorRef> groupc) {
-        System.out.println(">>> Test sequential consistency and multiple client working <<<");
+    public static void test_se_co() {
+        init(false);
 
-        automaticop(groupc);
+        try {
+            System.out.println(">>> Initiate nodes <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        automaticop(groupc); // generates random data in nodes
+
+        try {
+            System.out.println(">>> Test sequential consistency and multiple client working <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
         printnodes();
         printclients(groupc);
     }
