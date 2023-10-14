@@ -18,29 +18,119 @@ public class main {
     final static int RANGE = 10 * N_NODES; //Range of key in DKVS
     static int N_CLIENTS = 5; //Number of the initial clients
     static Map<Integer, ActorRef> mapgroupn;
+    static List<ActorRef> groupc = new ArrayList<>();
 
-    public static void main(String[] args) {
+    /**
+     * Generates test data for a node, given a range (from, to]
+     */
+    public static MapElements generate_test_elements(int from, int to) {
+        MapElements m = new MapElements();
+
+        for (int i = from + 1; i <= to; i++) {
+            m.put(i, new Pair<>("0", 0));
+        }
+
+        return m;
+    }
+
+
+    public static void init(boolean gen_test_elements) {
         mapgroupn = new TreeMap<Integer, ActorRef>(); //Map between the nodes and t33heir key
         for (int i = 0; i < N_NODES * 10; i = i + 10) {
             ActorRef a = system.actorOf(Node.props(i), "node" + i);
             mapgroupn.put(i, a);
         }
-        List<ActorRef> groupc = new ArrayList<ActorRef>(); //List of clients
+
         for (int i = 0; i < N_CLIENTS; i++) {
             groupc.add(system.actorOf(Client.props(i), "client" + i));
         }
-        Map<Integer, Map<Integer, Integer>> repl_indexes = Utils.get_replicas_indexes(mapgroupn, N);
+
         // Start all the nodes
         for (Map.Entry<Integer, ActorRef> entry : mapgroupn.entrySet()) {
             // Join messages to the nodes to inform them about the map
-            JoinGroupMsg start = new JoinGroupMsg(mapgroupn, repl_indexes.get(entry.getKey()));
+
+            JoinGroupMsg start = null;
+            if (gen_test_elements) {
+                if (entry.getKey() != 0) {
+                    start = new JoinGroupMsg(
+                            mapgroupn, generate_test_elements(entry.getKey() - 10, entry.getKey()));
+                } else {
+                    start = new JoinGroupMsg(
+                            mapgroupn, generate_test_elements((N_NODES - 1) * 10, N_NODES * 10));
+                }
+            } else {
+                start = new JoinGroupMsg(mapgroupn, null);
+            }
             entry.getValue().tell(start, ActorRef.noSender());
         }
+
+        System.out.println("[DEBUG] init done");
+    }
+
+    public static void demo_fixed_elements_standard() {
+        init(true);
+
         try {
             System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
             System.in.read();
         } catch (IOException e) {
         }
+
+        printnodes();
+    }
+
+    /**
+     * Demo that inits the nodes with fixed elements and creates three new nodes 15,35,25
+     *
+     * @throws IOException
+     */
+    public static void demo_fixed_elements_create_node() throws IOException {
+        init(true);
+
+        try {
+            System.out.println(">>> Create new node 15 <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        create_new_node(15);
+        System.out.println(">>> Create new node 35 <<<");
+        System.in.read();
+        create_new_node(35);
+        System.out.println(">>> Create new node 25 <<<");
+        System.in.read();
+        create_new_node(25);
+
+        printnodes();
+    }
+
+    public static void demo_fixed_elements_remove_node() throws IOException {
+        init(true);
+
+        try {
+            System.out.println(">>> Remove node 10 <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        // remove node 10
+        mapgroupn.get(10).tell(new Node.LeaveRequest(), ActorRef.noSender());
+        mapgroupn.remove(10);
+
+        printnodes();
+    }
+
+    public static void demo_random_elements_standard() {
+        init(false);
+
+        try {
+            System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        automaticop(groupc); // generates random data in nodes
+
         /*// start all the clients
         for (ActorRef client : groupc) {
             client.tell(start2, ActorRef.noSender());
@@ -70,17 +160,20 @@ public class main {
         //Test sequential consistency
         test_se_co(groupc)
         */
-        //test join
-        System.out.println(">>> Test join operation <<<");
-        automaticop(groupc);
-        /*try {
-            System.out.println(">>> Create a new node <<<"); //wait that the operations finish
-            System.in.read();
-        } catch (IOException e) {
-        }
-        create_new_node(15);
-        */
-        printnodes();
+
+        printnodes(); // prints nodes
+    }
+
+    public static void main(String[] args) throws IOException {
+        System.out.println(">>> Start with the testing <<<"); //wait that all the nodes are initiated
+        System.in.read();
+
+        // select just one of the one below:
+
+        //demo_random_elements_standard();
+        demo_fixed_elements_standard();
+        //demo_fixed_elements_create_node();
+        //demo_fixed_elements_remove_node();
 
         try {
             System.out.println(">>> Press ENTER to terminate program <<<");

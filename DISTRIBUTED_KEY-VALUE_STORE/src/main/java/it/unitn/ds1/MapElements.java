@@ -69,10 +69,17 @@ public class MapElements extends HashMap<Integer, Pair<String, Integer>> {
      */
     public MapElements get_range(Integer key_start, Integer key_end) {
         MapElements selected = new MapElements();
+        if (key_start > key_end) {
+            for (Map.Entry<Integer, Pair<String, Integer>> el : this.entrySet()) {
+                if (el.getKey() > key_start) {
+                    selected.put(el.getKey(), el.getValue());
+                }
+            }
+        }
         // select keys
         for (Map.Entry<Integer, Pair<String, Integer>> el : this.entrySet()) {
             if (el.getKey() <= key_end &&
-                    el.getKey() > key_start) { //TODO check before node
+                    el.getKey() > key_start) {
                 selected.put(el.getKey(), el.getValue());
             }
         }

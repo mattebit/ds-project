@@ -66,9 +66,9 @@ public class Node extends AbstractActor {
         ordered_id.sort(Comparator.reverseOrder());
         for (Integer i : ordered_id) {
             if (key < i) {
+                neighbour_id = i;
                 break;
             }
-            neighbour_id = i; // TODO check
         }
         if (neighbour_id == -1)
             neighbour_id = ordered_id.get(0);
@@ -108,7 +108,7 @@ public class Node extends AbstractActor {
 
         // Request new replicated data to responsible node. For each replication index ask data to node
         for (int index : replication_indexes.keySet()) {
-            get_responsible_node(index).tell(new ReplicationRequest(), getSelf());
+            nodes.get(index).tell(new ReplicationRequest(), getSelf());
         }
 
         last_update_replication_indexes_hash = replication_indexes.hashCode();
@@ -130,6 +130,7 @@ public class Node extends AbstractActor {
      * @return a Map containing the elements this node is responsible for
      */
     public MapElements get_responsible_elements() {
+        //System.out.println("responsible elements of node " + key + " are " + elements.get_range(get_preceding_id(), key).keySet().toString() );
         return elements.get_range(get_preceding_id(), key);
     }
 
@@ -223,8 +224,14 @@ public class Node extends AbstractActor {
             ActorRef value = entry.getValue();
             this.nodes.put(key, value);
         }
+
         // fill replication indexes
-        this.replication_indexes.putAll(msg.replication_index);
+        update_replication_indexes();
+
+        if (msg.start_elements != null) {
+            this.elements.putAll(msg.start_elements);
+            update_replication();
+        }
     }
 
     /**
@@ -234,6 +241,7 @@ public class Node extends AbstractActor {
      */
     private void onReplicationResponse(ReplicationResponse msg) {
         elements.update(msg.new_elements);
+        System.out.println("Node " + key + " received replication response with elements: " + msg.new_elements.keySet());
     }
 
     /**
@@ -554,9 +562,12 @@ public class Node extends AbstractActor {
      */
     private void onJoinResponse(JoinResponse msg) {
         update_remove_nodes(msg.nodes); // updates the list of all nodes from the bootstrapper Join Response
-        ActorRef neighbour = get_responsible_node(key);
+        ActorRef neighbour = get_neighbour();
         // ask data to neighbour
         neighbour.tell(new DataRequest(key), self());
+
+        update_replication_indexes();
+        // update replication done on on announce
     }
 
     /**
@@ -567,7 +578,7 @@ public class Node extends AbstractActor {
      */
     private void onDataRequest(DataRequest msg) {
         // get preceding works because the new node is not present yet
-        MapElements selected = elements.get_range(get_preceding_id(), msg.id);
+        MapElements selected = elements.get_range(get_preceding_id(msg.id), msg.id);
         sender().tell(new DataResponse(selected), getSelf());
     }
 
@@ -586,6 +597,7 @@ public class Node extends AbstractActor {
             for (ActorRef n : nodes.values()) {
                 n.tell(new AnnounceNode(this.key, self()), self());
             }
+            update_replication();
             return;
         }
         // check the data with a read
@@ -616,6 +628,7 @@ public class Node extends AbstractActor {
                 for (ActorRef n : nodes.values()) {
                     n.tell(new AnnounceNode(this.key, self()), self());
                 }
+                update_replication();
                 isJoining = false;
             } else if (isRecovering) {
                 isRecovering = false;
@@ -631,9 +644,6 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void onAnnounceNode(AnnounceNode msg) {
-        if (key == msg.key) {
-            return; // message returned at sender, announce done.
-        }
         // add new joined node
         this.nodes.put(msg.key, msg.new_node); // not sender
         // Update the replication indexes:
@@ -657,10 +667,22 @@ public class Node extends AbstractActor {
      */
     private void onprintElem(PrintElem msg) {
         System.out.println("ID node:" + this.key);
-        System.out.println("Objects in the node:");
-        for (Map.Entry<Integer, Pair<String, Integer>> entry : this.elements.entrySet()) {
+        System.out.println("Objects in the node: ------------");
+
+        // print responsible nodes
+        MapElements responsible = get_responsible_elements();
+        System.out.println("Responsible elements:");
+        for (Map.Entry<Integer, Pair<String, Integer>> entry : responsible.entrySet()) {
             System.out.println("idN:" + this.key + " idE:" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
         }
+
+        System.out.println("Replicated elements:");
+        for (Map.Entry<Integer, Pair<String, Integer>> entry : elements.entrySet()) {
+            if (!responsible.containsKey(entry.getKey())) {
+                System.out.println("idN:" + this.key + " idE:" + entry.getKey() + " value:" + entry.getValue().getKey() + " version:" + entry.getValue().getValue());
+            }
+        }
+
         System.out.println("Version list:");
         for (Map.Entry<Integer, ArrayList<Integer>> entry : this.versionMap.entrySet()) {
             System.out.println("idN:" + this.key + " idE:" + entry.getKey());
@@ -668,6 +690,7 @@ public class Node extends AbstractActor {
                 System.out.println("version:" + version);
             }
         }
+        System.out.println("---------------------------------");
     }
 
     /**
@@ -733,8 +756,9 @@ public class Node extends AbstractActor {
      * updated)
      */
     private void update_replication_indexes() {
-        List<Integer> precedings_id = get_precedings_id(main.N-1);
+        List<Integer> precedings_id = get_precedings_id(main.N - 1);
 
+        System.out.println("[DEBUG] node " + key + " new replication indexes: " + precedings_id.toString());
         replication_indexes.clear();
         for (Integer id : precedings_id) {
             replication_indexes.put(id, 0);
@@ -829,11 +853,15 @@ public class Node extends AbstractActor {
     //Start message
     public static class JoinGroupMsg implements Serializable {
         public final Map<Integer, ActorRef> group;   // a map of nodes
-        public final Map<Integer, Integer> replication_index;
+        public MapElements start_elements;
 
-        public JoinGroupMsg(Map<Integer, ActorRef> group, Map<Integer, Integer> replication_index) {
+        /**
+         * @param group
+         * @param start_elements If you want to fill the node with initial elements
+         */
+        public JoinGroupMsg(Map<Integer, ActorRef> group, MapElements start_elements) {
             this.group = Collections.unmodifiableMap(new TreeMap<Integer, ActorRef>(group));
-            this.replication_index = Map.copyOf(replication_index);
+            this.start_elements = start_elements;
         }
     }
 
