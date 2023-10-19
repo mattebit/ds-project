@@ -5,6 +5,8 @@ import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.*;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
+import it.unitn.ds1.Node.Crashmsg;
+import it.unitn.ds1.Node.RecoveryMsg;
 
 import java.io.IOException;
 import java.util.*;
@@ -299,6 +301,54 @@ public class main {
         client.tell(write, ActorRef.noSender()); //tell to the client to write the object (key,value)
 
         printnodes();
+    }
+
+    /**
+     * Ricovery test
+     *
+     */
+    public static void test_recovery() {
+        init(false);
+
+        try {
+            System.out.println(">>> Initiate nodes <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        automaticop(groupc); // generates random data in nodes
+
+        try {
+            System.out.println(">>> Crash a node <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        Crashmsg crash = new Crashmsg();
+
+        ActorRef crashNode = get_random_node();
+
+        crashNode.tell(crash,null);
+
+        try {
+            System.out.println(">>> Join node <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        create_new_node(15);
+
+        try {
+            System.out.println(">>> Recovery node <<<");
+            System.in.read();
+        } catch (IOException e) {
+        }
+
+        //RecoveryMsg recovery = new RecoveryMsg();
+        //crashNode.tell(recovery,null)
+
+        printnodes();
+
     }
 
     /**
