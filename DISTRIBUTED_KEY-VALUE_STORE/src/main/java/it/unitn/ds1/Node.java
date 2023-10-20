@@ -739,6 +739,17 @@ public class Node extends AbstractActor {
      * @param msg
      */
     public void onRecovery_request(RecoveryMsg msg) {
+        //Return to normal behaviour
+        getContext().become(createReceive());
+
+        //CLear nodes map and add map between keys and their nodes in DKVS
+        this.nodes.clear();
+        for (Map.Entry<Integer, ActorRef> entry : msg.nodes.entrySet()) {
+            Integer key = entry.getKey();
+            ActorRef value = entry.getValue();
+            this.nodes.put(key, value);
+        }
+
         isRecovering = true;
         // update repl indexes
         update_replication_indexes();
@@ -771,7 +782,7 @@ public class Node extends AbstractActor {
      * @param msg
      */
     private void oncrash(Crashmsg msg) {
-        nodes.remove(this.key);
+        //nodes.remove(this.key);
         crash();
     }
 
@@ -782,13 +793,6 @@ public class Node extends AbstractActor {
         getContext().become(crashed());
     }
 
-    /**
-     * Handling the recovery message
-     *
-     * @param msg
-     */
-    private void onRecoveryMsg(RecoveryMsg msg) {
-    }
 
     //Normal behaviour
     public Receive createReceive() {
@@ -823,14 +827,13 @@ public class Node extends AbstractActor {
                 //Crash message
                 .match(Crashmsg.class, this::oncrash)
                 // Recovery
-                .match(RecoveryMsg.class, this::onRecovery_request)
                 .build();
     }
 
     //Crash behaviour
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
-                .match(RecoveryMsg.class, this::onRecoveryMsg)
+                .match(RecoveryMsg.class, this::onRecovery_request)
                 .build();
     }
 
@@ -1048,10 +1051,10 @@ public class Node extends AbstractActor {
     }
 
     public static class RecoveryMsg implements Serializable {
-        Map<ActorRef, Integer> nodes;
+        Map<Integer, ActorRef> nodes;
 
-        public RecoveryMsg(Map<ActorRef, Integer> nodes) {
-            this.nodes = nodes;
+        public RecoveryMsg(Map<Integer, ActorRef> nodes) {
+            this.nodes = Collections.unmodifiableMap(new TreeMap<Integer, ActorRef>(nodes));
         }
     }
 

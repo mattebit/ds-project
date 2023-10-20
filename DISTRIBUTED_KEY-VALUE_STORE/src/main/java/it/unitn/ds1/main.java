@@ -155,7 +155,8 @@ public class main {
 
         // select just one of the one below:
         //test_w_rep();
-        test_r();
+        //test_r();
+        test_recovery();
         //test_se_co();
         //demo_fixed_elements_standard();
         //demo_fixed_elements_create_node();
@@ -326,9 +327,11 @@ public class main {
 
         Crashmsg crash = new Crashmsg();
 
-        ActorRef crashNode = get_random_node();
+        ActorRef crashNode = mapgroupn.get(10);
 
         crashNode.tell(crash,null);
+
+        printnodes();
 
         try {
             System.out.println(">>> Join node <<<");
@@ -344,8 +347,9 @@ public class main {
         } catch (IOException e) {
         }
 
-        //RecoveryMsg recovery = new RecoveryMsg();
-        //crashNode.tell(recovery,null)
+        RecoveryMsg recovery = new RecoveryMsg(mapgroupn);
+
+        crashNode.tell(recovery,null);
 
         printnodes();
 
