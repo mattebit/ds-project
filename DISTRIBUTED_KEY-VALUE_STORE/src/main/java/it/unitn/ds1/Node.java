@@ -826,7 +826,6 @@ public class Node extends AbstractActor {
                 .match(ReplicationRequest.class, this::onReplicationRequest)
                 //Crash message
                 .match(Crashmsg.class, this::oncrash)
-                // Recovery
                 .build();
     }
 
