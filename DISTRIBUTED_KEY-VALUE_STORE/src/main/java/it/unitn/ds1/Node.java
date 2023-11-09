@@ -404,11 +404,7 @@ public class Node extends AbstractActor {
         if (this.elements.containsKey(msg.key)) {
             e = elements.get(msg.key);
         }
-        /*if (e == null) { // SOLO SCOPO DI TESTTTTTTTTTTTT !!!!!!!!!!!!!!!
-            e = new Pair("prova", 0);
-            element.put(msg.key, e);
-        }*/
-        //System.out.println("LEGGGERRRE");
+
         if (e != null) {
             getSender().tell(new ResponseRead(e, msg.count, msg.key), getSelf());
         }
