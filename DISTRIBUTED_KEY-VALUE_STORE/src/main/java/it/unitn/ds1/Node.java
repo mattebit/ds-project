@@ -645,6 +645,9 @@ public class Node extends AbstractActor {
         // Update the replication indexes:
         update_replication_indexes();
         update_replication(); // updates values
+
+        /* if the preceding node is the one joining, this node is his neighbour, and should remove the elements
+           it is not responsible anymore. This is implicitly accomplished in the update_replication function */
     }
 
     /**
@@ -790,7 +793,10 @@ public class Node extends AbstractActor {
     }
 
 
-    //Normal behaviour
+    /**
+     * Receive function in normal behaviour
+     * @return the Receive Object
+     */
     public Receive createReceive() {
         return receiveBuilder()
                 //Write and read messages
@@ -825,13 +831,20 @@ public class Node extends AbstractActor {
                 .build();
     }
 
-    //Crash behaviour
+    /**
+     * Receive function in crashed behaviour
+     * @return the Receive Object
+     */
     final AbstractActor.Receive crashed() {
         return receiveBuilder()
                 .match(RecoveryMsg.class, this::onRecovery_request)
                 .build();
     }
 
+    /**
+     * Response to the Replication request containing the elements requested by the node who issued the
+     * replication request
+     */
     public static class ReplicationResponse implements Serializable {
         MapElements new_elements;
 
@@ -840,15 +853,23 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Replication request message
+     */
     public static class ReplicationRequest implements Serializable {
 
     }
 
-    //Crash message
+    /**
+     * Crash message issued by the main to the node that has to crash
+     */
     public static class Crashmsg implements Serializable {
     }
 
-    //Start message
+    /**
+     * "start" message issued by the main to a node to init it into the circle. Contains the nodes int the circle
+     * and the start elements
+     */
     public static class JoinGroupMsg implements Serializable {
         public final Map<Integer, ActorRef> group;   // a map of nodes
         public MapElements start_elements;
@@ -863,7 +884,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Read message from Client
+    /**
+     * Message used by the client to read data
+     */
     public static class Retrive implements Serializable {
         public final int key;   //Key of object Client wants to read
 
@@ -872,7 +895,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Write message from Client
+    /**
+     * Message used by the Client to write data
+     */
     public static class Change implements Serializable {
         public final int key; //Key of object client wants to insert
         public final String value; //Value of object client wants to insert
@@ -883,7 +908,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Read message from coordinator to specific nodes
+    /**
+     * Read message issued by the coordinator to specific nodes to read data
+     */
     public static class Read implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
@@ -894,7 +921,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Read message from coordinator for write operation purpose
+    /**
+     * The read message issued by the coordinator before doing a write
+     */
     public static class Readforwrite implements Serializable {
         public final int key; //Key of object coordinator wants to read
         public final int count; //Key of waiting request associated with the read operation
@@ -905,7 +934,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Timeout message (in read operation)
+    /**
+     * Message for the timeout of read operations
+     */
     public static class TimeoutR implements Serializable {
         public final int count; //Key of waiting request associated with the timeout
         public final int key; //Key of object associated with the request
@@ -916,7 +947,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Timeout message (in write operation)
+    /**
+     * Message for the timeout in write operations
+     */
     public static class TimeoutW implements Serializable {
         public final int count; //Key of waiting request associated with the timeout
         public final int key; //Key of object associated with the request
@@ -927,7 +960,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Answer from nodes to the coordinator in read operation
+    /**
+     * Response messages from the nodes after a read message
+     */
     public static class ResponseRead implements Serializable {
         public final Pair<String, Integer> e; //Object (value and version) requested
         public final int count; //Key of waiting request associated with the read operation
@@ -942,7 +977,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Answer from nodes to the coordinator in write operation
+    /**
+     * Answer from nodes to the coordinator in write operation
+     */
     public static class ResponseRFW implements Serializable {
         public final int count; //Key of waiting request associated with the write operation
         public final int key; //Key of object associated with the write operation
@@ -955,7 +992,9 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Write message from coordinator to specific nodes
+    /**
+     * Write message from coordinator to specific nodes
+     */
     public static class Write implements Serializable {
         public final String value; //Value of object coordinator wants to insert
         public final int key; //Key of object coordinator wants to insert
@@ -968,6 +1007,9 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Message issued by a joining node to its neighbour to retrieve the elements it is responsible for.
+     */
     public static class DataRequest implements Serializable {
         public final Integer id;
 
@@ -976,6 +1018,9 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Response message to the Data Request message, containing the elements the new node is responsible for
+     */
     public static class DataResponse implements Serializable {
         public final MapElements data;
 
@@ -1005,6 +1050,10 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Message issued by the main to the new joining node, contains a reference to the bootstrapper and the actual
+     * replication index for convenience
+     */
     public static class JoinNode implements Serializable {
         ActorRef bootstrapper;
         Map<Integer, Integer> replication_index;
@@ -1015,12 +1064,17 @@ public class Node extends AbstractActor {
         }
     }
 
-    //Start message
+    /**
+     * First message issued by a joining node to its coordinator.
+     */
     public static class JoinRequest implements Serializable {
         public JoinRequest() {
         }
     }
 
+    /**
+     * Response message of a join request, contains the actual list of nodes in the circle
+     */
     public static class JoinResponse implements Serializable {
         Map<Integer, ActorRef> nodes;
 
@@ -1029,12 +1083,21 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Message sent by the main to a node to ask it to print its elements
+     */
     public static class PrintElem implements Serializable {
     }
 
+    /**
+     * Message sent by the main to a node to ask it to leave
+     */
     public static class LeaveRequest implements Serializable {
     }
 
+    /**
+     * Message sent by the leaving node to inform others that it is leaving
+     */
     public static class NodeLeavingInfo implements Serializable {
         MapElements new_elements;
         Integer key;
@@ -1045,6 +1108,9 @@ public class Node extends AbstractActor {
         }
     }
 
+    /**
+     * Recovery message from the main to the crashed node. It contains the actual state of the circle
+     */
     public static class RecoveryMsg implements Serializable {
         Map<Integer, ActorRef> nodes;
 

@@ -3,9 +3,9 @@ package it.unitn.ds1;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import it.unitn.ds1.Client.*;
+import it.unitn.ds1.Node.Crashmsg;
 import it.unitn.ds1.Node.JoinGroupMsg;
 import it.unitn.ds1.Node.PrintElem;
-import it.unitn.ds1.Node.Crashmsg;
 import it.unitn.ds1.Node.RecoveryMsg;
 
 import java.io.IOException;
@@ -279,7 +279,6 @@ public class main {
 
     /**
      * Test replication and write
-     *
      */
     public static void test_w_rep() {
         init(false);
@@ -306,7 +305,6 @@ public class main {
 
     /**
      * Ricovery test
-     *
      */
     public static void test_recovery() {
         init(false);
@@ -329,7 +327,7 @@ public class main {
 
         ActorRef crashNode = mapgroupn.get(10);
 
-        crashNode.tell(crash,null);
+        crashNode.tell(crash, null);
 
         printnodes();
 
@@ -349,7 +347,7 @@ public class main {
 
         RecoveryMsg recovery = new RecoveryMsg(mapgroupn);
 
-        crashNode.tell(recovery,null);
+        crashNode.tell(recovery, null);
 
         printnodes();
 
@@ -357,7 +355,6 @@ public class main {
 
     /**
      * Test read
-     *
      */
     public static void test_r() {
         init(false);
@@ -389,7 +386,6 @@ public class main {
 
     /**
      * Test sequential consistency
-     *
      */
     public static void test_se_co() {
         init(false);
