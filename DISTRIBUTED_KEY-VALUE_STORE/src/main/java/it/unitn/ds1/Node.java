@@ -703,7 +703,7 @@ public class Node extends AbstractActor {
         for (ActorRef node : nodes.values()) {
             node.tell(
                     new NodeLeavingInfo(
-                            elements.get_range(get_preceding_id(), this.key),
+                            get_responsible_elements(),
                             this.key),
                     getSelf()
             );

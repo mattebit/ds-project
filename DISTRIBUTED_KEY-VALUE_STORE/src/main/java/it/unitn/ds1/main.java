@@ -407,6 +407,4 @@ public class main {
         printnodes();
         printclients(groupc);
     }
-
-
 }
